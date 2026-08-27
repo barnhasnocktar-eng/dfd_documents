@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_document_folder_kanban" model="ir.ui.view">
+        <field name="name">document.folder.kanban</field>
+        <field name="model">document.folder</field>
+        <field name="arch" type="xml">
+            <kanban js_class="document_folder_kanban" class="o_dfd_document_folder_kanban"
+                action="action_open_folder" type="object"
+                on_create="dfd_documents.action_document_folder_create_wizard">
+                <field name="name"/>
+                <field name="description"/>
+                <field name="child_count"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_global_click o_dfd_folder_card">
+                            <img src="/dfd_documents/static/src/img/folder.png" class="o_dfd_folder_icon" alt="Carpeta"/>
+                            <div class="o_dfd_folder_info">
+                                <div class="o_dfd_folder_name">
+                                    <field name="name"/>
+                                </div>
+                                <div class="o_dfd_folder_description text-muted" t-if="record.description.value">
+                                    <field name="description"/>
+                                </div>
+                                <div class="o_dfd_folder_count text-muted">
+                                    <t t-esc="record.child_count.value"/> subcarpeta(s)
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_document_folder_form" model="ir.ui.view">
+        <field name="name">document.folder.form</field>
+        <field name="model">document.folder</field>
+        <field name="arch" type="xml">
+            <form string="Carpeta">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="description"/>
+                        <field name="parent_id"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_document_folder" model="ir.actions.act_window">
+        <field name="name">Documentos</field>
+        <field name="res_model">document.folder</field>
+        <field name="view_mode">kanban,form</field>
+        <field name="domain">[('parent_id', '=', False)]</field>
+        <field name="context">{'active_folder_id': False}</field>
+    </record>
+
+    <record id="action_document_folder_kanban_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="view_document_folder_kanban"/>
+        <field name="act_window_id" ref="action_document_folder"/>
+    </record>
+</odoo>

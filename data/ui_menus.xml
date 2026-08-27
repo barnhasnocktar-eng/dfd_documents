@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_document_folder_root"
+              name="Documentos"
+              action="action_document_folder"
+              sequence="20"/>
+
+    <!-- Icono de menú raíz igual al de Documentos en dfd_holidays -->
+    <record id="menu_document_folder_root" model="ir.ui.menu">
+        <field name="use_icon" eval="True"/>
+        <field name="icon_class_name">ri-folder-line</field>
+    </record>
+</odoo>

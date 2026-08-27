@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="dfd_documents.DocumentFolderKanbanView" t-inherit="web.KanbanView" t-inherit-mode="primary">
+        <xpath expr="//t[@t-component='props.Renderer']" position="before">
+            <DocumentFolderBreadcrumb activeFolderId="props.context.active_folder_id"/>
+        </xpath>
+    </t>
+
+    <t t-name="dfd_documents.DocumentFolderBreadcrumb">
+        <ol class="dfd_document_breadcrumb breadcrumb mb-0">
+            <li class="breadcrumb-item">
+                <a href="#" t-on-click.prevent="() => this.goTo(false)">
+                    <i class="fa fa-folder-o me-1"/>Documentos
+                </a>
+            </li>
+            <t t-foreach="state.path" t-as="folder" t-key="folder.id">
+                <li class="breadcrumb-item">
+                    <a href="#" t-on-click.prevent="() => this.goTo(folder.id)">
+                        <t t-esc="folder.name"/>
+                    </a>
+                </li>
+            </t>
+        </ol>
+    </t>
+
+</templates>

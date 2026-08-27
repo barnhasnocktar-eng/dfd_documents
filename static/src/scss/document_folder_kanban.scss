@@ -1,0 +1,42 @@
+// Copyright 2026 Vértice Operativo <soporte@verticeoperativo.com>
+// Todos los derechos reservados. Está prohibido la distribución o modificación de este código sin permiso
+
+.o_dfd_document_folder_kanban {
+    .o_dfd_folder_card {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 8px;
+        cursor: pointer;
+    }
+
+    .o_dfd_folder_icon {
+        width: 40px;
+        height: 40px;
+        flex-shrink: 0;
+    }
+
+    .o_dfd_folder_name {
+        font-weight: 600;
+    }
+
+    .o_dfd_folder_description,
+    .o_dfd_folder_count {
+        font-size: 0.85em;
+    }
+}
+
+.dfd_document_breadcrumb {
+    background: transparent;
+    padding: 8px 16px;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--border-color, #dee2e6);
+
+    .breadcrumb-item + .breadcrumb-item::before {
+        content: ">";
+    }
+
+    a {
+        text-decoration: none;
+    }
+}
