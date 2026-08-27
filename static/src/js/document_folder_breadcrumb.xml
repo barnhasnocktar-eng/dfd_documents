@@ -40,6 +40,9 @@
                     <div class="o_dfd_folder_count text-muted">
                         <t t-esc="file.sizeLabel"/>
                     </div>
+                    <div class="o_dfd_folder_count text-muted">
+                        Fecha Subida: <t t-esc="file.dateLabel"/>
+                    </div>
                 </div>
             </div>
         </xpath>

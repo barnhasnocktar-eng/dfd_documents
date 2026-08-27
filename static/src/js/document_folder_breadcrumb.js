@@ -6,6 +6,7 @@ import { kanbanView } from "@web/views/kanban/kanban_view";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
 import { Component, onWillStart, useState, onMounted, onWillUnmount } from "@odoo/owl";
+import { formatDate, deserializeDateTime } from "@web/core/l10n/dates";
 
 // Formatea un tamaño en bytes a texto legible (KB/MB) para el subtexto de la tarjeta de documento.
 function formatFileSize(bytes) {
@@ -106,11 +107,12 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
         const files = await this.orm.searchRead(
             "document.file",
             [["folder_id", "=", folderId]],
-            ["name", "mimetype", "file_size"]
+            ["name", "mimetype", "file_size", "create_date"]
         );
         this.fileState.files = files.map((file) => ({
             ...file,
             sizeLabel: formatFileSize(file.file_size),
+            dateLabel: file.create_date ? formatDate(deserializeDateTime(file.create_date)) : "",
         }));
     }
 

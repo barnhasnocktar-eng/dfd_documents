@@ -29,7 +29,7 @@ Documento (archivo) contenido dentro de una carpeta. No duplica el binario: dele
 Campos destacados:
 - `folder_id` (many2one a `document.folder`, requerido, `ondelete="cascade"`): carpeta contenedora. No existe documento sin carpeta — subir a la raíz (`active_folder_id=False`) no está soportado, produce error de campo obligatorio.
 - `attachment_id` (many2one a `ir.attachment`, requerido, `ondelete="cascade"`): binario real.
-- `mimetype`, `file_size` (related de `attachment_id`): expuestos para mostrar tipo/tamaño sin leer el adjunto aparte; `file_size` se formatea a texto legible (KB/MB) en el cliente JS antes de pintarlo en la tarjeta.
+- `mimetype`, `file_size` (related de `attachment_id`): expuestos para mostrar tipo/tamaño sin leer el adjunto aparte; `file_size` se formatea a texto legible (KB/MB) en el cliente JS antes de pintarlo en la tarjeta. La tarjeta también muestra `create_date` (campo nativo de Odoo, sin necesidad de related) formateado con `formatDate`/`deserializeDateTime` de `@web/core/l10n/dates`, en línea propia bajo el tamaño, con texto "Fecha Subida: {fecha}".
 
 Seguridad: `base.group_user` con acceso completo (CRUD), misma línea que `document.folder`.
 
