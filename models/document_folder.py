@@ -65,3 +65,22 @@ class DocumentFolder(models.Model):
     def action_go_to_folder(self, folder_id=False):
         """Navega a un nivel concreto del árbol (usado por el breadcrumb); sin folder_id navega a la raíz."""
         return self._get_kanban_action(folder_id)
+
+    @api.model
+    def create_from_upload_tree(self, tree, folder_id):
+        """Recrea recursivamente en `folder_id` un árbol de carpetas/archivos subido por drag&drop.
+
+        `tree` es una lista de nodos {"type": "file"|"folder", "name": ..., "data": <base64>,
+        "children": [...]} tal como lo construye el JS al recorrer los DataTransferItem con
+        webkitGetAsEntry(). Reutiliza document.file.create_from_upload para cada archivo.
+        """
+        DocumentFile = self.env["document.file"]
+        for node in tree:
+            if node.get("type") == "folder":
+                subfolder = self.create({
+                    "name": node.get("name"),
+                    "parent_id": folder_id,
+                })
+                self.create_from_upload_tree(node.get("children") or [], subfolder.id)
+            else:
+                DocumentFile.create_from_upload(node.get("name"), node.get("data"), folder_id)

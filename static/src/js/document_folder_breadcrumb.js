@@ -124,6 +124,16 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
         return this.props.list.context.active_folder_id || false;
     }
 
+    // El kanban nativo solo cuenta document.folder (subcarpetas) para decidir si mostrar
+    // el mensaje de "vacío"; los documentos se inyectan aparte en fileState.files, así que
+    // hay que tenerlos en cuenta aquí para no marcar como vacía una carpeta con documentos.
+    get showNoContentHelper() {
+        if (this.fileState.files.length) {
+            return false;
+        }
+        return super.showNoContentHelper;
+    }
+
     async loadFiles() {
         const folderId = this.activeFolderId;
         const files = await this.orm.searchRead(
@@ -152,37 +162,94 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
     async onDrop(ev) {
         ev.preventDefault();
         this.fileState.dragging = false;
-        const files = [...(ev.dataTransfer?.files || [])];
-        if (!files.length) {
-            return;
-        }
-        for (const file of files) {
-            await this.uploadFile(file);
+        const items = ev.dataTransfer?.items;
+        const entries =
+            items && items.length
+                ? [...items].map((item) => item.webkitGetAsEntry?.()).filter(Boolean)
+                : [];
+
+        if (entries.length) {
+            // Navegador soporta entries (Chrome/Edge/Firefox): recorremos carpetas y subcarpetas.
+            const tree = [];
+            for (const entry of entries) {
+                tree.push(await this.buildTreeNode(entry));
+            }
+            try {
+                await this.orm.call("document.folder", "create_from_upload_tree", [
+                    tree,
+                    this.activeFolderId,
+                ]);
+            } catch (error) {
+                this.notification.add(_t("No se pudo completar la subida de la carpeta."), {
+                    type: "danger",
+                });
+            }
+        } else {
+            // Fallback: navegador sin soporte de entries, solo archivos sueltos.
+            const files = [...(ev.dataTransfer?.files || [])];
+            for (const file of files) {
+                await this.uploadFile(file);
+            }
         }
         await this.loadFiles();
+        await this.props.list.model.load();
     }
 
-    uploadFile(file) {
-        const folderId = this.activeFolderId;
+    // Convierte recursivamente un FileSystemEntry (archivo o carpeta) en el árbol
+    // {type, name, data, children} que espera document.folder.create_from_upload_tree.
+    async buildTreeNode(entry) {
+        if (entry.isDirectory) {
+            const children = await this.readAllEntries(entry.createReader());
+            const childNodes = [];
+            for (const child of children) {
+                childNodes.push(await this.buildTreeNode(child));
+            }
+            return { type: "folder", name: entry.name, children: childNodes };
+        }
+        const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+        const data = await this.readFileAsBase64(file);
+        return { type: "file", name: entry.name, data };
+    }
+
+    // readEntries() solo devuelve hasta 100 resultados por llamada: hay que repetir hasta vaciarla.
+    readAllEntries(reader) {
+        return new Promise((resolve, reject) => {
+            const all = [];
+            const readBatch = () => {
+                reader.readEntries((batch) => {
+                    if (!batch.length) {
+                        resolve(all);
+                        return;
+                    }
+                    all.push(...batch);
+                    readBatch();
+                }, reject);
+            };
+            readBatch();
+        });
+    }
+
+    readFileAsBase64(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = async () => {
-                const base64Data = reader.result.split(",")[1];
-                try {
-                    await this.orm.call("document.file", "create_from_upload", [
-                        file.name,
-                        base64Data,
-                        folderId,
-                    ]);
-                    resolve();
-                } catch (error) {
-                    this.notification.add(`No se pudo subir "${file.name}".`, { type: "danger" });
-                    reject(error);
-                }
-            };
+            reader.onload = () => resolve(reader.result.split(",")[1]);
             reader.onerror = reject;
             reader.readAsDataURL(file);
         });
+    }
+
+    async uploadFile(file) {
+        const folderId = this.activeFolderId;
+        try {
+            const base64Data = await this.readFileAsBase64(file);
+            await this.orm.call("document.file", "create_from_upload", [
+                file.name,
+                base64Data,
+                folderId,
+            ]);
+        } catch (error) {
+            this.notification.add(`No se pudo subir "${file.name}".`, { type: "danger" });
+        }
     }
 
     async openFile(fileId) {
