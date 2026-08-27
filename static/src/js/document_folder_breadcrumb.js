@@ -55,6 +55,30 @@ export class DocumentFolderBreadcrumb extends Component {
         onWillStart(async () => {
             await this.loadPath();
         });
+
+        // El tema spiffy_theme_backend fuerza noBreadcrumbs:false desde JS (parche propio
+        // de View), por lo que el breadcrumb nativo de Odoo no se puede ocultar por config
+        // ni por CSS (sus reglas usan !important y ganan la cascada). Se oculta a mano
+        // por DOM, ya que este componente solo se monta en la vista de carpetas.
+        onMounted(() => this.hideNativeBreadcrumb());
+        onWillUnmount(() => this.showNativeBreadcrumb());
+    }
+
+    hideNativeBreadcrumb() {
+        // Solo el <ol> de la ruta clicable ("Documentos / Documentos"): el título de la
+        // vista y los botones de acciones viven en el mismo contenedor .o_breadcrumb
+        // pero fuera de este <ol>, así que no se ven afectados.
+        const el = document.querySelector(".o_control_panel_breadcrumbs ol.breadcrumb");
+        if (el) {
+            el.style.display = "none";
+        }
+    }
+
+    showNativeBreadcrumb() {
+        const el = document.querySelector(".o_control_panel_breadcrumbs ol.breadcrumb");
+        if (el) {
+            el.style.display = "";
+        }
     }
 
     async loadPath() {
