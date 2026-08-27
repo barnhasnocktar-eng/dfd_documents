@@ -52,5 +52,5 @@ class DocumentFile(models.Model):
         return {
             "type": "ir.actions.act_url",
             "url": f"/web/content/{self.attachment_id.id}?download=true",
-            "target": "self",
+            "target": "download",
         }
