@@ -20,13 +20,20 @@ class DocumentFolder(models.Model):
         index=True,
     )
     child_ids = fields.One2many("document.folder", "parent_id", string="Subcarpetas")
+    file_ids = fields.One2many("document.file", "folder_id", string="Documentos")
     parent_path = fields.Char(index=True, unaccent=False)
     child_count = fields.Integer(string="Nº de subcarpetas", compute="_compute_child_count")
+    file_count = fields.Integer(string="Nº de documentos", compute="_compute_file_count")
 
     @api.depends("child_ids")
     def _compute_child_count(self):
         for folder in self:
             folder.child_count = len(folder.child_ids)
+
+    @api.depends("file_ids")
+    def _compute_file_count(self):
+        for folder in self:
+            folder.file_count = len(folder.file_ids)
 
     @api.constrains("parent_id")
     def _check_parent_recursion(self):

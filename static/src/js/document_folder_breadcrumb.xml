@@ -24,4 +24,30 @@
         </ol>
     </t>
 
+    <t t-name="dfd_documents.DocumentFolderKanbanRenderer" t-inherit="web.KanbanRenderer" t-inherit-mode="primary">
+        <xpath expr="//div[hasclass('o_kanban_renderer')]" position="attributes">
+            <attribute name="t-att-class">{ o_dfd_kanban_dragging: fileState.dragging }</attribute>
+        </xpath>
+        <xpath expr="//t[@t-foreach='getGroupsOrRecords()']" position="after">
+            <div class="o_kanban_record d-flex flex-grow-1 flex-md-shrink-1 flex-shrink-0 o_dfd_document_file_card"
+                 t-foreach="fileState.files" t-as="file" t-key="file.id"
+                 t-on-click="() => this.openFile(file.id)">
+                <img src="/dfd_documents/static/src/img/file.png" class="o_dfd_folder_icon" alt="Documento"/>
+                <div class="o_dfd_folder_info">
+                    <div class="o_dfd_folder_name">
+                        <t t-esc="file.name"/>
+                    </div>
+                    <div class="o_dfd_folder_count text-muted">
+                        <t t-esc="file.sizeLabel"/>
+                    </div>
+                </div>
+            </div>
+        </xpath>
+        <xpath expr="//div[hasclass('o_kanban_renderer')]" position="inside">
+            <div class="o_dfd_kanban_drop_overlay" t-if="fileState.dragging">
+                <i class="fa fa-upload me-2"/>Soltar para subir a esta carpeta
+            </div>
+        </xpath>
+    </t>
+
 </templates>
