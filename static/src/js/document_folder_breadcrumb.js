@@ -10,6 +10,25 @@ import { formatDate, deserializeDateTime } from "@web/core/l10n/dates";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
 
+// Determina el icono a mostrar en la tarjeta de documento según su mimetype.
+const FILE_ICON_BY_MIMETYPE = {
+    "application/pdf": "pdf.png",
+    "application/msword": "doc.png",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "doc.png",
+    "application/vnd.ms-excel": "xls.png",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xls.png",
+    "application/zip": "rar.png",
+    "application/x-zip-compressed": "rar.png",
+    "application/x-rar-compressed": "rar.png",
+    "application/vnd.rar": "rar.png",
+    "application/x-rar": "rar.png",
+};
+
+function getFileIcon(mimetype) {
+    const fileName = FILE_ICON_BY_MIMETYPE[mimetype] || "file.png";
+    return `/dfd_documents/static/src/img/${fileName}`;
+}
+
 // Formatea un tamaño en bytes a texto legible (KB/MB) para el subtexto de la tarjeta de documento.
 function formatFileSize(bytes) {
     if (!bytes) {
@@ -116,6 +135,7 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
             ...file,
             sizeLabel: formatFileSize(file.file_size),
             dateLabel: file.create_date ? formatDate(deserializeDateTime(file.create_date)) : "",
+            iconSrc: getFileIcon(file.mimetype),
         }));
     }
 

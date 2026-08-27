@@ -33,7 +33,7 @@
                  t-foreach="fileState.files" t-as="file" t-key="file.id"
                  t-on-click="() => this.openFile(file.id)">
                 <div class="oe_kanban_global_click o_dfd_folder_card">
-                    <img src="/dfd_documents/static/src/img/file.png" class="o_dfd_folder_icon" alt="Documento"/>
+                    <img t-att-src="file.iconSrc" class="o_dfd_folder_icon" alt="Documento"/>
                     <div class="o_dfd_folder_info">
                         <div class="o_dfd_folder_name">
                             <t t-esc="file.name"/>
