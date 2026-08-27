@@ -2,20 +2,12 @@
 // Todos los derechos reservados. Está prohibido la distribución o modificación de este código sin permiso
 
 .o_dfd_document_folder_kanban {
-    // El wrapper nativo o_kanban_record es el flex-item que realmente se estira por la fila
-    // (via display:flex heredado); forzamos aquí que su contenido arranque arriba siempre,
-    // sin depender de height:100% en el hijo (no surte efecto si el padre no fija una altura explícita).
-    .o_kanban_record {
-        align-items: flex-start !important;
-    }
-
     .o_dfd_folder_card {
         display: flex;
         align-items: flex-start;
         gap: 10px;
         padding: 8px;
         cursor: pointer;
-        width: 100%;
     }
 
     .o_dfd_folder_icon {
@@ -34,7 +26,8 @@
     }
 
     .o_dfd_document_file_card {
-        align-items: flex-start !important;
+        display: flex;
+        align-items: flex-start;
         gap: 10px;
         padding: 8px;
         cursor: pointer;
