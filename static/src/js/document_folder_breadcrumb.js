@@ -7,6 +7,8 @@ import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
 import { Component, onWillStart, useState, onMounted, onWillUnmount } from "@odoo/owl";
 import { formatDate, deserializeDateTime } from "@web/core/l10n/dates";
+import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { _t } from "@web/core/l10n/translation";
 
 // Formatea un tamaño en bytes a texto legible (KB/MB) para el subtexto de la tarjeta de documento.
 function formatFileSize(bytes) {
@@ -67,6 +69,7 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
         this.orm = useService("orm");
         this.action = useService("action");
         this.notification = useService("notification");
+        this.dialog = useService("dialog");
         this.fileState = useState({ files: [], dragging: false });
         // this.rootRef ya lo define KanbanRenderer (useRef("root")) — se reutiliza tal cual.
 
@@ -165,6 +168,36 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
     async openFile(fileId) {
         const action = await this.orm.call("document.file", "action_download", [fileId]);
         await this.action.doAction(action);
+    }
+
+    // Pide confirmación y borra una carpeta (recarga la vista para refrescar el listado).
+    confirmDeleteFolder(ev, folderId) {
+        ev.stopPropagation();
+        this.dialog.add(ConfirmationDialog, {
+            title: _t("Eliminar carpeta"),
+            body: _t("¿Seguro que quieres eliminar esta carpeta y todo su contenido?"),
+            confirmLabel: _t("Eliminar"),
+            confirm: async () => {
+                await this.orm.unlink("document.folder", [folderId]);
+                await this.props.list.model.load();
+            },
+            cancel: () => {},
+        });
+    }
+
+    // Pide confirmación y borra un documento de la carpeta activa.
+    confirmDeleteFile(ev, fileId) {
+        ev.stopPropagation();
+        this.dialog.add(ConfirmationDialog, {
+            title: _t("Eliminar documento"),
+            body: _t("¿Seguro que quieres eliminar este documento?"),
+            confirmLabel: _t("Eliminar"),
+            confirm: async () => {
+                await this.orm.unlink("document.file", [fileId]);
+                await this.loadFiles();
+            },
+            cancel: () => {},
+        });
     }
 }
 DocumentFolderKanbanRenderer.template = "dfd_documents.DocumentFolderKanbanRenderer";

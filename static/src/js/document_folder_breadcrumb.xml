@@ -45,6 +45,9 @@
                             Fecha Subida: <t t-esc="file.dateLabel"/>
                         </div>
                     </div>
+                    <i class="fa fa-trash-o o_dfd_delete_icon"
+                       title="Eliminar documento"
+                       t-on-click="(ev) => this.confirmDeleteFile(ev, file.id)"/>
                 </div>
             </div>
         </xpath>

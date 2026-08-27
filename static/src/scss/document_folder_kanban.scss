@@ -16,6 +16,11 @@
         flex-shrink: 0;
     }
 
+    .o_dfd_folder_info {
+        flex-grow: 1;
+        min-width: 0;
+    }
+
     .o_dfd_folder_name {
         font-weight: 600;
     }
@@ -23,6 +28,19 @@
     .o_dfd_folder_description,
     .o_dfd_folder_count {
         font-size: 0.85em;
+    }
+
+    .o_dfd_delete_icon {
+        flex-shrink: 0;
+        align-self: center;
+        margin-left: auto;
+        padding: 4px 6px;
+        color: var(--text-muted, #6c757d);
+        cursor: pointer;
+
+        &:hover {
+            color: var(--o-danger, #dc3545);
+        }
     }
 
     &.o_dfd_kanban_dragging {
