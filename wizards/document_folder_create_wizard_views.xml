@@ -7,7 +7,6 @@
             <form string="Nueva carpeta">
                 <group>
                     <field name="name" placeholder="Nombre de la carpeta"/>
-                    <field name="description" placeholder="Descripción"/>
                     <field name="parent_id" invisible="1"/>
                 </group>
                 <footer>

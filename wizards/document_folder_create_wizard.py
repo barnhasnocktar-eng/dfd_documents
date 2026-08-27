@@ -8,7 +8,6 @@ class DocumentFolderCreateWizard(models.TransientModel):
     _description = "Asistente para crear una nueva carpeta"
 
     name = fields.Char(string="Nombre", required=True)
-    description = fields.Text(string="Descripción")
     parent_id = fields.Many2one("document.folder", string="Carpeta padre")
 
     @api.model
@@ -24,7 +23,6 @@ class DocumentFolderCreateWizard(models.TransientModel):
         self.ensure_one()
         self.env["document.folder"].create({
             "name": self.name,
-            "description": self.description,
             "parent_id": self.parent_id.id,
         })
         return {"type": "ir.actions.act_window_close"}

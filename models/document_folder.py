@@ -12,7 +12,6 @@ class DocumentFolder(models.Model):
     _parent_name = "parent_id"
 
     name = fields.Char(string="Nombre", required=True)
-    description = fields.Text(string="Descripción")
     parent_id = fields.Many2one(
         "document.folder",
         string="Carpeta padre",

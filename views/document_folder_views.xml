@@ -8,7 +8,6 @@
                 action="action_open_folder" type="object"
                 on_create="dfd_documents.action_document_folder_create_wizard">
                 <field name="name"/>
-                <field name="description"/>
                 <field name="child_count"/>
                 <field name="file_count"/>
                 <templates>
@@ -18,9 +17,6 @@
                             <div class="o_dfd_folder_info">
                                 <div class="o_dfd_folder_name">
                                     <field name="name"/>
-                                </div>
-                                <div class="o_dfd_folder_description text-muted" t-if="record.description.value">
-                                    <field name="description"/>
                                 </div>
                                 <div class="o_dfd_folder_count text-muted">
                                     <t t-esc="record.child_count.value"/> subcarpeta(s)<t t-if="record.file_count.value">, <t t-esc="record.file_count.value"/> documento(s)</t>
@@ -42,7 +38,6 @@
                 <sheet>
                     <group>
                         <field name="name"/>
-                        <field name="description"/>
                         <field name="parent_id"/>
                     </group>
                 </sheet>
