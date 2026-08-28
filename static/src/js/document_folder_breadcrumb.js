@@ -9,7 +9,7 @@ import { Component, onWillStart, useState, onMounted, onPatched, onWillUnmount }
 import { formatDate, deserializeDateTime } from "@web/core/l10n/dates";
 import { ConfirmationDialog, deleteConfirmationMessage } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
-import { dragState, callMoveItem } from "@dfd_documents/js/document_folder_drag_state";
+import { dragState, callMoveItem, getMoveErrorMessage } from "@dfd_documents/js/document_folder_drag_state";
 import { notifyFolderTreeChanged } from "@dfd_documents/js/document_folder_bus";
 import { DocumentFolderTreeSidebar } from "@dfd_documents/js/document_folder_tree_sidebar";
 
@@ -135,10 +135,9 @@ export class DocumentFolderBreadcrumb extends Component {
         try {
             await callMoveItem(this.orm, item, folderId);
         } catch (error) {
-            this.notification.add(
-                item.type === "folder" ? _t("No se pudo mover la carpeta.") : _t("No se pudo mover el documento."),
-                { type: "danger" }
-            );
+            const message = getMoveErrorMessage(error) ||
+                (item.type === "folder" ? _t("No se pudo mover la carpeta.") : _t("No se pudo mover el documento."));
+            this.notification.add(message, { type: "danger" });
             return;
         }
         if (item.type === "folder") {
@@ -273,10 +272,9 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
         try {
             await callMoveItem(this.orm, item, targetFolderId);
         } catch (error) {
-            this.notification.add(
-                item.type === "folder" ? _t("No se pudo mover la carpeta.") : _t("No se pudo mover el documento."),
-                { type: "danger" }
-            );
+            const message = getMoveErrorMessage(error) ||
+                (item.type === "folder" ? _t("No se pudo mover la carpeta.") : _t("No se pudo mover el documento."));
+            this.notification.add(message, { type: "danger" });
         }
         if (item.type === "folder") {
             notifyFolderTreeChanged();

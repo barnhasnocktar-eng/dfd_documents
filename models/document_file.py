@@ -1,6 +1,7 @@
 # Copyright 2026 Vértice Operativo <soporte@verticeoperativo.com>
 # Todos los derechos reservados. Está prohibido la distribución o modificación de este código sin permiso
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class DocumentFile(models.Model):
@@ -48,7 +49,13 @@ class DocumentFile(models.Model):
 
     @api.model
     def move_file(self, file_id, target_folder_id):
-        """Mueve el documento `file_id` a `target_folder_id` (drag&drop de documento sobre carpeta en el kanban)."""
+        """Mueve el documento `file_id` a `target_folder_id` (drag&drop de documento sobre carpeta en el kanban).
+
+        `folder_id` es obligatorio en el modelo, así que sin este check un `target_folder_id`
+        vacío (soltar sobre la raíz) fallaría con el error genérico de campo requerido.
+        """
+        if not target_folder_id:
+            raise ValidationError("No puedes meter documentos en la carpeta raíz.")
         self.browse(file_id).write({"folder_id": target_folder_id})
 
     def action_download(self):

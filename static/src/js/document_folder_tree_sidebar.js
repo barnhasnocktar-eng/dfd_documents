@@ -5,7 +5,7 @@
 import { Component, useState, onWillStart, onMounted, onWillUnmount } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
-import { dragState, callMoveItem } from "@dfd_documents/js/document_folder_drag_state";
+import { dragState, callMoveItem, getMoveErrorMessage } from "@dfd_documents/js/document_folder_drag_state";
 import { documentFolderBus } from "@dfd_documents/js/document_folder_bus";
 
 // Panel lateral tipo "árbol de carpetas" (estilo explorador de archivos de Windows): pinta
@@ -121,10 +121,9 @@ export class DocumentFolderTreeSidebar extends Component {
         try {
             await callMoveItem(this.orm, item, folderId);
         } catch (error) {
-            this.notification.add(
-                item.type === "folder" ? _t("No se pudo mover la carpeta.") : _t("No se pudo mover el documento."),
-                { type: "danger" }
-            );
+            const message = getMoveErrorMessage(error) ||
+                (item.type === "folder" ? _t("No se pudo mover la carpeta.") : _t("No se pudo mover el documento."));
+            this.notification.add(message, { type: "danger" });
             return;
         }
         await this.loadTree();

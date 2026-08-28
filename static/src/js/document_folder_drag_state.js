@@ -19,3 +19,9 @@ export async function callMoveItem(orm, item, targetFolderId) {
         await orm.call("document.file", "move_file", [id, targetFolderId]);
     }
 }
+
+// Extrae el mensaje de una ValidationError/UserError lanzada por el backend (p.ej. "no se puede
+// mover a la raíz") para mostrarlo tal cual en vez del texto genérico de fallback.
+export function getMoveErrorMessage(error) {
+    return error?.data?.message || error?.message?.data?.message;
+}
