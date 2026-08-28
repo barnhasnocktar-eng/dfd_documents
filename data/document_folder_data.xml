@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<odoo noupdate="0">
+<odoo noupdate="1">
+    <!-- Carpetas -->
+        <!-- Carpeta por defecto para los Empleados -->
     <record id="document_folder_empleados" model="document.folder">
         <field name="name">Empleados</field>
         <field name="parent_id" eval="False"/>
-        <field name="is_locked" eval="True"/>
     </record>
-
-    <!-- Carpeta padre por defecto donde se crean las carpetas de cada empleado, configurable
-         desde Ajustes > Empleados > Documentos. -->
+    <!-- Configuración -->
+        <!-- Carpeta por defecto donde se crean subcarpetas de cada empleado -->
     <record id="config_parameter_employee_folder_parent" model="ir.config_parameter">
         <field name="key">dfd_documents.employee_folder_parent_id</field>
         <field name="value" eval="ref('document_folder_empleados')"/>
