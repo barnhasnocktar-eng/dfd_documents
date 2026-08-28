@@ -50,6 +50,28 @@ class DocumentFolder(models.Model):
         help="Unión de los grupos permitidos de esta carpeta y de todas sus antepasadas, "
         "más los grupos de sistema siempre presentes.",
     )
+    allowed_employee_ids = fields.Many2many(
+        "hr.employee",
+        "document_folder_allowed_employee_rel",
+        "folder_id",
+        "employee_id",
+        string="Empleados permitidos",
+        help="Empleados con acceso a esta carpeta y a su contenido a través de su usuario "
+        "relacionado, además de los ya permitidos por grupo o heredados de alguna carpeta "
+        "antepasada. Un empleado sin usuario relacionado no obtiene acceso por esta vía "
+        "hasta que se le asigne uno.",
+    )
+    effective_employee_ids = fields.Many2many(
+        "hr.employee",
+        "document_folder_effective_employee_rel",
+        "folder_id",
+        "employee_id",
+        string="Empleados con acceso (heredado)",
+        compute="_compute_effective_group_ids",
+        store=True,
+        recursive=True,
+        help="Unión de los empleados permitidos de esta carpeta y de todas sus antepasadas.",
+    )
 
     def write(self, vals):
         # Corta aquí (y no solo en move_folder/rename wizard/wizard de permisos) para cubrir
@@ -73,10 +95,11 @@ class DocumentFolder(models.Model):
             raise UserError("No puedes editar o mover esta carpeta.")
 
         # Cambios que afectan a la carpeta en sí (no a su contenido) exigen permiso en el
-        # padre: renombrar/mover, is_locked y allowed_group_ids (los propios permisos de la
-        # carpeta también se gestionan "desde fuera", no desde dentro de ella misma).
+        # padre: renombrar/mover, is_locked y allowed_group_ids/allowed_employee_ids (los
+        # propios permisos de la carpeta también se gestionan "desde fuera", no desde dentro
+        # de ella misma).
         guarded_folders = renamed_or_moved
-        if vals.keys() & {"is_locked", "allowed_group_ids"}:
+        if vals.keys() & {"is_locked", "allowed_group_ids", "allowed_employee_ids"}:
             guarded_folders |= self
         guarded_folders._check_can_manage_self()
         return super().write(vals)
@@ -96,13 +119,19 @@ class DocumentFolder(models.Model):
         """
         if self.env.user.has_group("base.group_system"):
             return
-        user_group_ids = set(self.env.user.groups_id.ids)
+        user = self.env.user
+        user_group_ids = set(user.groups_id.ids)
         for folder in self:
             parent = folder.parent_id
-            allowed_ids = set(parent.effective_group_ids.ids) if parent else set(
-                self._get_always_allowed_groups().ids
-            )
-            if not (user_group_ids & allowed_ids):
+            if parent:
+                allowed_group_ids = set(parent.effective_group_ids.ids)
+                allowed_user_ids = set(parent.effective_employee_ids.user_id.ids)
+            else:
+                allowed_group_ids = set(self._get_always_allowed_groups().ids)
+                allowed_user_ids = set()
+            has_group = bool(user_group_ids & allowed_group_ids)
+            has_employee = user.id in allowed_user_ids
+            if not (has_group or has_employee):
                 raise UserError(
                     "No tienes permiso para modificar esta carpeta. "
                     "El permiso sobre una carpeta da acceso a su contenido, no a la carpeta en sí."
@@ -129,21 +158,30 @@ class DocumentFolder(models.Model):
         grupos permitidos propios asignados (p. ej. Administración/Ajustes técnicos)."""
         return self.env.ref("base.group_system")
 
-    @api.depends("allowed_group_ids", "parent_id.effective_group_ids")
+    @api.depends(
+        "allowed_group_ids", "parent_id.effective_group_ids",
+        "allowed_employee_ids", "parent_id.effective_employee_ids",
+    )
     def _compute_effective_group_ids(self):
         always_allowed = self._get_always_allowed_groups()
         for folder in self:
             if folder.parent_id:
-                inherited = folder.parent_id.effective_group_ids
+                inherited_groups = folder.parent_id.effective_group_ids
+                inherited_employees = folder.parent_id.effective_employee_ids
             else:
-                inherited = always_allowed
-            folder.effective_group_ids = inherited | folder.allowed_group_ids | always_allowed
+                inherited_groups = always_allowed
+                inherited_employees = self.env["hr.employee"]
+            folder.effective_group_ids = inherited_groups | folder.allowed_group_ids | always_allowed
+            folder.effective_employee_ids = inherited_employees | folder.allowed_employee_ids
 
     def _is_accessible_by_current_user(self):
-        """True si el usuario actual pertenece a algún grupo efectivo (propio o heredado) de `self`."""
+        """True si el usuario actual pertenece a algún grupo efectivo, o es el usuario
+        relacionado de algún empleado efectivo (propio o heredado), de `self`."""
         self.ensure_one()
         user_group_ids = set(self.env.user.groups_id.ids)
-        return bool(user_group_ids & set(self.effective_group_ids.ids))
+        if user_group_ids & set(self.effective_group_ids.ids):
+            return True
+        return self.env.user.id in self.effective_employee_ids.user_id.ids
 
     def get_path(self):
         """Devuelve el camino de carpetas desde la raíz hasta esta carpeta (incluida), para el breadcrumb."""

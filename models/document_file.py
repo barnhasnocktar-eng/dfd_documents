@@ -30,6 +30,11 @@ class DocumentFile(models.Model):
         related="folder_id.effective_group_ids",
         string="Grupos con acceso (heredado)",
     )
+    effective_employee_ids = fields.Many2many(
+        "hr.employee",
+        related="folder_id.effective_employee_ids",
+        string="Empleados con acceso (heredado)",
+    )
 
     @api.model
     def create_from_upload(self, name, data, folder_id):
