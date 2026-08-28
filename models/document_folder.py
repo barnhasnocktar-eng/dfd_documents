@@ -118,6 +118,37 @@ class DocumentFolder(models.Model):
         self._check_can_manage_self()
         return super().unlink()
 
+    @api.model
+    def is_employee_related(self, folder_id):
+        """True si `folder_id`, o alguna de sus subcarpetas a cualquier profundidad, es la
+        carpeta de documentos de algún empleado (`hr.employee.x_document_folder_id`) o es la
+        carpeta configurada como carpeta padre de empleados por defecto (ver
+        `x_get_employee_folder_parent` en hr_employee.py). Usado por el JS para mostrar una
+        doble confirmación antes de borrar, ya que el borrado es recursivo e irreversible.
+        """
+        folder = self.browse(folder_id)
+        if not folder.exists():
+            return False
+        folder_and_descendants = self.search([("id", "child_of", folder.id)])
+        if self.env["hr.employee"].sudo().search_count(
+            [("x_document_folder_id", "in", folder_and_descendants.ids)]
+        ):
+            return True
+        return bool(folder_and_descendants & folder._get_employee_default_root_folders())
+
+    @api.model
+    def _get_employee_default_root_folders(self):
+        """Carpeta(s) que actúan como carpeta padre de empleados por defecto: la configurada
+        en Ajustes (`dfd_documents.employee_folder_parent_id`) y, siempre, la carpeta
+        'Empleados' de los datos del módulo (fallback si se borra el parámetro), para que el
+        aviso salte también si se borra esta última estando el parámetro vacío."""
+        ConfigParameter = self.env["ir.config_parameter"].sudo()
+        parent_id = ConfigParameter.get_param("dfd_documents.employee_folder_parent_id")
+        configured = self.browse(int(parent_id)) if parent_id else self.browse()
+        default = self.env.ref("dfd_documents.document_folder_empleados", raise_if_not_found=False)
+        default = default if default and default.exists() else self.browse()
+        return (configured.exists() and configured or self.browse()) | default
+
     def _check_can_manage_self(self):
         """Versión que lanza `UserError` de `_can_manage_self()` (ver ahí la explicación
         completa de la regla). Se usa en los puntos donde el rechazo debe cortar la

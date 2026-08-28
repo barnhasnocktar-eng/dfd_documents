@@ -576,17 +576,30 @@ class DocumentFolderKanbanController extends KanbanController {
     // El icono de papelera de cada tarjeta (type="delete" en el arch) borra la carpeta a través
     // de este método nativo, no del confirmDeleteFolder del renderer; hay que avisar aquí al
     // árbol lateral igual que en createRecord, o se queda con la carpeta borrada hasta refrescar.
+    //
+    // El botón resaltado (btn-primary) del ConfirmationDialog nativo es siempre el de "confirm",
+    // sin prop para cambiarlo (ver web.ConfirmationDialog): para que el botón resaltado sea "No,
+    // manténgalo" y no "Eliminar", se invierten los slots — "confirm" (resaltado) cierra sin
+    // borrar, "cancel" (secundario) ejecuta el borrado real.
     async deleteRecord(record) {
+        const doDelete = async () => {
+            await this.model.root.deleteRecords([record]);
+            notifyFolderTreeChanged();
+        };
+        const isEmployeeRelated = await this.orm.call("document.folder", "is_employee_related", [record.resId]);
+        const body = isEmployeeRelated
+            ? _t(
+                  "La carpeta que estás intentando borrar está asociada a uno o varios " +
+                  "empleados. Si la borras será irreversible. ¿Estás seguro?"
+              )
+            : deleteConfirmationMessage;
         this.dialog.add(ConfirmationDialog, {
             title: _t("Bye-bye, record!"),
-            body: deleteConfirmationMessage,
-            confirm: async () => {
-                await this.model.root.deleteRecords([record]);
-                notifyFolderTreeChanged();
-            },
-            confirmLabel: _t("Delete"),
-            cancel: () => {},
-            cancelLabel: _t("No, keep it"),
+            body,
+            confirmLabel: _t("No, keep it"),
+            confirm: () => {},
+            cancelLabel: _t("Delete"),
+            cancel: doDelete,
         });
     }
 }

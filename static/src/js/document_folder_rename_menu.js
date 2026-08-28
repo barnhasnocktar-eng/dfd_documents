@@ -139,22 +139,34 @@ export class DeleteFolderMenuItem extends Component {
         this.dialog = useService("dialog");
     }
 
-    deleteFolder() {
+    async deleteFolder() {
         const { context } = this.env.searchModel;
         const folderId = context.active_folder_id;
+        const doDelete = async () => {
+            const [folder] = await this.orm.read("document.folder", [folderId], ["parent_id"]);
+            const parentId = folder.parent_id ? folder.parent_id[0] : false;
+            await this.orm.unlink("document.folder", [folderId]);
+            notifyFolderTreeChanged();
+            const nextAction = await this.orm.call("document.folder", "action_go_to_folder", [parentId]);
+            await this.action.doAction(nextAction, { clearBreadcrumbs: true });
+        };
+        // El botón resaltado (btn-primary) del ConfirmationDialog nativo es siempre el de
+        // "confirm", sin prop para cambiarlo (ver web.ConfirmationDialog): para que el botón
+        // resaltado sea "No, manténgalo" y no "Eliminar", se invierten los slots — "confirm"
+        // (resaltado) cierra sin borrar, "cancel" (secundario) ejecuta el borrado real.
+        const body = (await this.orm.call("document.folder", "is_employee_related", [folderId]))
+            ? _t(
+                  "La carpeta que estás intentando borrar está asociada a uno o varios " +
+                  "empleados. Si la borras será irreversible. ¿Estás seguro?"
+              )
+            : _t("¿Seguro que quieres eliminar esta carpeta y todo su contenido?");
         this.dialog.add(ConfirmationDialog, {
             title: _t("Eliminar carpeta"),
-            body: _t("¿Seguro que quieres eliminar esta carpeta y todo su contenido?"),
-            confirmLabel: _t("Eliminar"),
-            confirm: async () => {
-                const [folder] = await this.orm.read("document.folder", [folderId], ["parent_id"]);
-                const parentId = folder.parent_id ? folder.parent_id[0] : false;
-                await this.orm.unlink("document.folder", [folderId]);
-                notifyFolderTreeChanged();
-                const nextAction = await this.orm.call("document.folder", "action_go_to_folder", [parentId]);
-                await this.action.doAction(nextAction, { clearBreadcrumbs: true });
-            },
-            cancel: () => {},
+            body,
+            confirmLabel: _t("No, manténgalo"),
+            confirm: () => {},
+            cancelLabel: _t("Eliminar"),
+            cancel: doDelete,
         });
     }
 }
