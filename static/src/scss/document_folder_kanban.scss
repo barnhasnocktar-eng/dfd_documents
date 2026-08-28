@@ -182,8 +182,17 @@
         content: ">";
     }
 
-    a {
+    // spiffy_theme_backend fuerza ".o_content a { color: var(--biz-theme-primary-color) }"
+    // (azul, fijo por config del tema, ajeno a modo claro/oscuro). Misma especificidad que un
+    // simple ".dfd_document_breadcrumb a" empata y depende del orden de carga de assets, así
+    // que hace falta calificar con .o_content para ganar por especificidad real.
+    .o_content & a {
         text-decoration: none;
+        color: var(--o-main-text-color, inherit);
+
+        &:hover {
+            color: var(--o-brand-primary, #714b67);
+        }
     }
 
     // Resalta el segmento de ruta bajo el cursor mientras se arrastra una carpeta o documento
