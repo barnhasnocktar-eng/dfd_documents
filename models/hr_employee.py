@@ -38,8 +38,29 @@ class HrEmployee(models.Model):
             root_folder = self.env.ref("dfd_documents.document_folder_empleados")
         return root_folder
 
+    def x_get_department_folder(self, root_folder, department):
+        """Devuelve la subcarpeta de `department` dentro de `root_folder`, creándola si no
+        existe todavía. Sin caché entre llamadas: se asume volumen bajo de departamentos, en
+        línea con la misma asunción ya hecha para `get_folder_tree` en document_folder.py.
+        """
+        DocumentFolder = self.env["document.folder"]
+        department_folder = DocumentFolder.search([
+            ("parent_id", "=", root_folder.id),
+            ("name", "=", department.name),
+        ], limit=1)
+        if not department_folder:
+            department_folder = DocumentFolder.create({
+                "name": department.name,
+                "parent_id": root_folder.id,
+            })
+        return department_folder
+
     def x_sync_default_folders(self):
         """Crea o completa la estructura de carpetas por defecto de cada empleado en `self`.
+
+        Si el empleado tiene departamento, su carpeta se crea dentro de una subcarpeta con el
+        nombre de ese departamento (creada bajo demanda si no existe aún). Sin departamento, la
+        carpeta del empleado se crea directamente bajo la carpeta raíz configurada.
 
         Si el empleado no tiene carpeta, la crea desde cero con todas las subcarpetas
         configuradas. Si ya la tiene, comprueba cuáles de las subcarpetas configuradas le
@@ -51,6 +72,9 @@ class HrEmployee(models.Model):
         for employee in self:
             employee_folder = employee.x_document_folder_id
             if not employee_folder:
+                employee_parent_folder = root_folder
+                if employee.department_id:
+                    employee_parent_folder = self.x_get_department_folder(root_folder, employee.department_id)
                 # allowed_employee_ids: el propio empleado queda con acceso automático a su
                 # carpeta desde el momento en que se crea, sin tener que pasar luego por el
                 # wizard de Permisos a mano. Si el empleado aún no tiene user_id asignado esto
@@ -58,7 +82,7 @@ class HrEmployee(models.Model):
                 # para cuando se le asigne uno.
                 employee_folder = DocumentFolder.create({
                     "name": employee.name,
-                    "parent_id": root_folder.id,
+                    "parent_id": employee_parent_folder.id,
                     "allowed_employee_ids": [(6, 0, employee.ids)],
                 })
                 employee.x_document_folder_id = employee_folder.id
