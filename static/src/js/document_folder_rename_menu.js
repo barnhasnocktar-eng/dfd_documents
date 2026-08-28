@@ -5,7 +5,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { archParseBoolean } from "@web/views/utils";
-import { Component } from "@odoo/owl";
+import { Component, useState, onWillStart } from "@odoo/owl";
 import { STATIC_ACTIONS_GROUP_NUMBER } from "@web/search/action_menus/action_menus";
 import { _t } from "@web/core/l10n/translation";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
@@ -93,6 +93,39 @@ export const renameFolderMenuItem = {
 
 cogMenuRegistry.add("dfd-rename-folder-menu", renameFolderMenuItem, { sequence: 2 });
 
+// Igual mecanismo que RenameFolderMenuItem (ver comentario más arriba), pero alterna entre
+// "Bloquear"/"Desbloquear" según el is_locked actual de la carpeta activa. Necesita leerlo antes
+// de pintar (onWillStart), a diferencia de los demás items de este menú que no cambian de texto
+// ni icono según el estado de la carpeta.
+export class ToggleLockFolderMenuItem extends Component {
+    static template = "dfd_documents.ToggleLockFolderMenuItem";
+    static components = { DropdownItem };
+
+    setup() {
+        this.orm = useService("orm");
+        this.state = useState({ isLocked: false });
+        onWillStart(async () => {
+            const folderId = this.env.searchModel.context.active_folder_id;
+            const [folder] = await this.orm.read("document.folder", [folderId], ["is_locked"]);
+            this.state.isLocked = folder.is_locked;
+        });
+    }
+
+    async toggleLock() {
+        const folderId = this.env.searchModel.context.active_folder_id;
+        await this.orm.write("document.folder", [folderId], { is_locked: !this.state.isLocked });
+        this.state.isLocked = !this.state.isLocked;
+    }
+}
+
+export const toggleLockFolderMenuItem = {
+    Component: ToggleLockFolderMenuItem,
+    groupNumber: STATIC_ACTIONS_GROUP_NUMBER,
+    isDisplayed: isDisplayedIfCanManage,
+};
+
+cogMenuRegistry.add("dfd-toggle-lock-folder-menu", toggleLockFolderMenuItem, { sequence: 3 });
+
 // Igual mecanismo que RenameFolderMenuItem (ver comentario más arriba), para abrir el wizard de
 // grupos/empleados permitidos de la carpeta activa. A diferencia de Renombrar/Eliminar, "Permisos"
 // se reserva SIEMPRE a base.group_system: gestionar quién tiene acceso es una potestad de
@@ -123,7 +156,7 @@ export const permissionsFolderMenuItem = {
         isFolderCogMenuCandidate(env) && env.services.user.isAdmin,
 };
 
-cogMenuRegistry.add("dfd-permissions-folder-menu", permissionsFolderMenuItem, { sequence: 3 });
+cogMenuRegistry.add("dfd-permissions-folder-menu", permissionsFolderMenuItem, { sequence: 4 });
 
 // Igual mecanismo que RenameFolderMenuItem (ver comentario más arriba), para ofrecer "Eliminar"
 // también fuera de la raíz, con la misma confirmación y borrado que ya usa el icono de papelera
@@ -188,4 +221,4 @@ export const deleteFolderMenuItem = {
     isDisplayed: isDisplayedIfCanManage,
 };
 
-cogMenuRegistry.add("dfd-delete-folder-menu", deleteFolderMenuItem, { sequence: 4 });
+cogMenuRegistry.add("dfd-delete-folder-menu", deleteFolderMenuItem, { sequence: 5 });

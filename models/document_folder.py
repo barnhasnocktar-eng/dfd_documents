@@ -107,7 +107,7 @@ class DocumentFolder(models.Model):
 
         locked = renamed_or_moved.filtered("is_locked")
         if locked:
-            raise UserError("No puedes editar o mover esta carpeta.")
+            raise UserError("No puedes editar o mover esta carpeta porque está bloqueada.")
 
         # Cambios que afectan a la carpeta en sí (no a su contenido) exigen permiso en el
         # padre: renombrar/mover, is_locked y allowed_group_ids/allowed_employee_ids (los
@@ -127,7 +127,7 @@ class DocumentFolder(models.Model):
 
     def unlink(self):
         if self.filtered("is_locked"):
-            raise UserError("No puedes editar o mover esta carpeta.")
+            raise UserError("No puedes editar o mover esta carpeta porque está bloqueada.")
         self._check_can_manage_self()
         # La cascada de unlink se lleva también las subcarpetas y sus documentos: se loguea
         # cada carpeta afectada (no solo las que se piden borrar explícitamente) antes de

@@ -12,9 +12,16 @@
         </DropdownItem>
     </t>
 
+    <t t-name="dfd_documents.ToggleLockFolderMenuItem">
+        <DropdownItem class="'o_dfd_toggle_lock_folder_menu'" onSelected.bind="toggleLock" parentClosingMode="'none'">
+            <i t-attf-class="fa fa-fw {{ state.isLocked ? 'fa-unlock' : 'fa-lock' }} me-1"/>
+            <t t-esc="state.isLocked ? 'Desbloquear' : 'Bloquear'"/>
+        </DropdownItem>
+    </t>
+
     <t t-name="dfd_documents.PermissionsFolderMenuItem">
         <DropdownItem class="'o_dfd_permissions_folder_menu'" onSelected.bind="openPermissions">
-            <i class="fa fa-fw fa-lock me-1"/>Permisos
+            <i class="fa fa-fw fa-users me-1"/>Permisos
         </DropdownItem>
     </t>
 
