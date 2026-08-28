@@ -7,7 +7,7 @@ import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
 import { Component, onWillStart, useState, onMounted, onPatched, onWillUnmount } from "@odoo/owl";
 import { formatDate, deserializeDateTime } from "@web/core/l10n/dates";
-import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { ConfirmationDialog, deleteConfirmationMessage } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
 import { dragState, callMoveItem } from "@dfd_documents/js/document_folder_drag_state";
 import { notifyFolderTreeChanged } from "@dfd_documents/js/document_folder_bus";
@@ -505,12 +505,49 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
 DocumentFolderKanbanRenderer.template = "dfd_documents.DocumentFolderKanbanRenderer";
 
 class DocumentFolderKanbanController extends KanbanController {
-    // El wizard de creación de carpeta (on_create) se abre y cierra por encima de esta vista;
-    // KanbanController.createRecord ya recarga el kanban al cerrarlo, pero el árbol lateral es
-    // un componente hermano que no se entera de esa recarga, así que hay que avisarle aparte.
+    // El wizard de creación de carpeta (on_create) se abre en un diálogo modal vía actionService;
+    // KanbanController.createRecord dispara ese doAction pero la promesa se resuelve al ABRIR el
+    // diálogo, no al cerrarlo (el actionService no espera al usuario) — envolver "await
+    // super.createRecord()" no sirve, notifyFolderTreeChanged() se dispararía antes de crear la
+    // carpeta. Hay que enganchar el propio onClose del wizard, así que se reimplementa aquí en
+    // vez de llamar a super().
     async createRecord() {
-        await super.createRecord();
-        notifyFolderTreeChanged();
+        const { onCreate } = this.props.archInfo;
+        const { root } = this.model;
+        if (this.canQuickCreate && onCreate === "quick_create") {
+            await super.createRecord();
+            return;
+        }
+        if (onCreate && onCreate !== "quick_create") {
+            await this.actionService.doAction(onCreate, {
+                additionalContext: root.context,
+                onClose: async () => {
+                    await root.load();
+                    this.model.useSampleModel = false;
+                    this.render(true);
+                    notifyFolderTreeChanged();
+                },
+            });
+        } else {
+            await this.props.createRecord();
+        }
+    }
+
+    // El icono de papelera de cada tarjeta (type="delete" en el arch) borra la carpeta a través
+    // de este método nativo, no del confirmDeleteFolder del renderer; hay que avisar aquí al
+    // árbol lateral igual que en createRecord, o se queda con la carpeta borrada hasta refrescar.
+    async deleteRecord(record) {
+        this.dialog.add(ConfirmationDialog, {
+            title: _t("Bye-bye, record!"),
+            body: deleteConfirmationMessage,
+            confirm: async () => {
+                await this.model.root.deleteRecords([record]);
+                notifyFolderTreeChanged();
+            },
+            confirmLabel: _t("Delete"),
+            cancel: () => {},
+            cancelLabel: _t("No, keep it"),
+        });
     }
 }
 DocumentFolderKanbanController.template = "dfd_documents.DocumentFolderKanbanView";
