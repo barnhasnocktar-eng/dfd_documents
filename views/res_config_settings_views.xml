@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_inherit_dfd_documents" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.dfd.documents</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="hr.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='hr']/block[@name='employees_setting_container']" position="before">
+                <block title="Documentos" name="dfd_documents_setting_container">
+                    <setting id="employee_folder_parent_setting"
+                             string="Carpeta de Empleados"
+                             help="Carpeta donde se crearán las carpetas de cada empleado y sus subcarpetas.">
+                        <field name="x_employee_folder_parent_id" options="{'no_open': True}"/>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

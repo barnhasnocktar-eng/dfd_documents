@@ -5,4 +5,11 @@
         <field name="parent_id" eval="False"/>
         <field name="is_locked" eval="True"/>
     </record>
+
+    <!-- Carpeta padre por defecto donde se crean las carpetas de cada empleado, configurable
+         desde Ajustes > Empleados > Documentos. -->
+    <record id="config_parameter_employee_folder_parent" model="ir.config_parameter">
+        <field name="key">dfd_documents.employee_folder_parent_id</field>
+        <field name="value" eval="ref('document_folder_empleados')"/>
+    </record>
 </odoo>
