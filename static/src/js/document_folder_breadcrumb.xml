@@ -31,9 +31,10 @@
         <xpath expr="//t[@t-foreach='getGroupsOrRecords()']" position="after">
             <div class="o_kanban_record d-flex flex-grow-1 flex-md-shrink-1 flex-shrink-0"
                  t-foreach="fileState.files" t-as="file" t-key="file.id"
+                 t-att-data-doc-file-id="file.id"
                  t-on-click="() => this.openFile(file.id)">
                 <div class="oe_kanban_global_click o_dfd_folder_card">
-                    <img t-att-src="file.iconSrc" class="o_dfd_folder_icon" alt="Documento"/>
+                    <img t-att-src="file.iconSrc" class="o_dfd_folder_icon" alt="Documento" draggable="false"/>
                     <div class="o_dfd_folder_info">
                         <div class="o_dfd_folder_name">
                             <t t-esc="file.name"/>

@@ -5,7 +5,7 @@ import { useService } from "@web/core/utils/hooks";
 import { kanbanView } from "@web/views/kanban/kanban_view";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
-import { Component, onWillStart, useState, onMounted, onWillUnmount } from "@odoo/owl";
+import { Component, onWillStart, useState, onMounted, onPatched, onWillUnmount } from "@odoo/owl";
 import { formatDate, deserializeDateTime } from "@web/core/l10n/dates";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
@@ -116,6 +116,12 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
         this.fileState = useState({ files: [], dragging: false });
         // this.rootRef ya lo define KanbanRenderer (useRef("root")) — se reutiliza tal cual.
 
+        // Elemento que se está arrastrando dentro del propio kanban (carpeta o documento) y
+        // tarjeta carpeta sobre la que está el cursor, solo para resaltarla con CSS mientras
+        // dura el drag. { type: "folder"|"file", id } o null si no hay drag interno en curso.
+        this.draggedItem = null;
+        this.dragOverEl = null;
+
         onWillStart(async () => {
             await this.loadFiles();
         });
@@ -125,23 +131,100 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
             if (!el) {
                 return;
             }
+            this._onDragStart = (ev) => this.onFolderDragStart(ev);
+            this._onDragEnd = (ev) => this.onFolderDragEnd(ev);
             this._onDragOver = (ev) => this.onDragOver(ev);
             this._onDragLeave = (ev) => this.onDragLeave(ev);
             this._onDrop = (ev) => this.onDrop(ev);
+            el.addEventListener("dragstart", this._onDragStart);
+            el.addEventListener("dragend", this._onDragEnd);
             el.addEventListener("dragover", this._onDragOver);
             el.addEventListener("dragleave", this._onDragLeave);
             el.addEventListener("drop", this._onDrop);
+            this.makeFolderCardsDraggable();
         });
+
+        // El renderer se vuelve a pintar en cada reload (tras crear/mover/borrar carpetas), así
+        // que hay que reaplicar draggable a las tarjetas cada vez que cambia la lista de registros.
+        onPatched(() => this.makeFolderCardsDraggable());
 
         onWillUnmount(() => {
             const el = this.rootRef.el;
             if (!el) {
                 return;
             }
+            el.removeEventListener("dragstart", this._onDragStart);
+            el.removeEventListener("dragend", this._onDragEnd);
             el.removeEventListener("dragover", this._onDragOver);
             el.removeEventListener("dragleave", this._onDragLeave);
             el.removeEventListener("drop", this._onDrop);
         });
+    }
+
+    // Marca cada tarjeta de carpeta nativa como draggable y le graba el resId real en
+    // data-folder-res-id. `record.id` (el que Odoo pinta como data-id) es el id interno del
+    // datapoint, no el id de document.folder en BD, así que no sirve para la llamada ORM: hay
+    // que casar cada tarjeta con su record por posición (el DOM se pinta en el mismo orden que
+    // props.list.records) y anotar aparte el resId real.
+    //
+    // Las tarjetas de documento se marcan aquí también (por JS, en vez de con t-att-draggable en
+    // la plantilla): el atributo draggable puesto solo por template no siempre arranca el drag
+    // en Chrome cuando el gesto empieza sobre un <img> hijo, así que se fuerza igual que carpetas.
+    makeFolderCardsDraggable() {
+        const el = this.rootRef.el;
+        if (!el) {
+            return;
+        }
+        const cards = el.querySelectorAll(".o_kanban_record[data-id]");
+        const records = this.props.list.records || [];
+        cards.forEach((card, index) => {
+            const record = records[index];
+            if (!record) {
+                return;
+            }
+            card.draggable = true;
+            card.dataset.folderResId = record.resId;
+        });
+        for (const fileCard of el.querySelectorAll("[data-doc-file-id]")) {
+            fileCard.draggable = true;
+        }
+    }
+
+    getFolderCard(target) {
+        return target?.closest?.(".o_kanban_record[data-folder-res-id]") || null;
+    }
+
+    getFileCard(target) {
+        return target?.closest?.("[data-doc-file-id]") || null;
+    }
+
+    onFolderDragStart(ev) {
+        const folderCard = this.getFolderCard(ev.target);
+        if (folderCard) {
+            this.draggedItem = { type: "folder", id: Number(folderCard.dataset.folderResId) };
+        } else {
+            const fileCard = this.getFileCard(ev.target);
+            if (!fileCard) {
+                return;
+            }
+            this.draggedItem = { type: "file", id: Number(fileCard.dataset.docFileId) };
+        }
+        ev.dataTransfer.effectAllowed = "move";
+        // Tipo propio para distinguir en onDrop un drag interno (carpeta o documento) de un
+        // drag de archivos/carpetas arrastrados desde el explorador del sistema operativo.
+        ev.dataTransfer.setData("application/x-dfd-item", "1");
+    }
+
+    onFolderDragEnd() {
+        this.draggedItem = null;
+        this.clearDragOver();
+    }
+
+    clearDragOver() {
+        if (this.dragOverEl) {
+            this.dragOverEl.classList.remove("o_dfd_folder_drag_over");
+            this.dragOverEl = null;
+        }
     }
 
     get activeFolderId() {
@@ -175,17 +258,72 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
 
     onDragOver(ev) {
         ev.preventDefault();
+        // Drag interno (carpeta o documento): no activa el overlay de "subir archivo", solo
+        // resalta la tarjeta carpeta bajo el cursor (si hay una) como posible destino. Un
+        // documento siempre puede soltarse sobre cualquier carpeta; una carpeta no sobre sí misma.
+        if (this.draggedItem) {
+            const card = this.getFolderCard(ev.target);
+            if (card !== this.dragOverEl) {
+                this.clearDragOver();
+                const isSameFolder =
+                    this.draggedItem.type === "folder" &&
+                    card &&
+                    Number(card.dataset.folderResId) === this.draggedItem.id;
+                if (card && !isSameFolder) {
+                    card.classList.add("o_dfd_folder_drag_over");
+                    this.dragOverEl = card;
+                }
+            }
+            return;
+        }
         this.fileState.dragging = true;
     }
 
     onDragLeave(ev) {
         ev.preventDefault();
+        if (this.draggedItem) {
+            return;
+        }
         this.fileState.dragging = false;
     }
 
     async onDrop(ev) {
         ev.preventDefault();
         this.fileState.dragging = false;
+
+        // Drag interno (carpeta o documento): mueve el elemento arrastrado dentro de la carpeta
+        // soltada (o a la raíz si se suelta fuera de cualquier tarjeta) en vez de subir archivos.
+        if (this.draggedItem) {
+            const { type, id } = this.draggedItem;
+            const targetCard = this.getFolderCard(ev.target);
+            this.clearDragOver();
+            this.draggedItem = null;
+            const targetFolderId = targetCard ? Number(targetCard.dataset.folderResId) : this.activeFolderId;
+            if (type === "folder" && targetFolderId === id) {
+                return;
+            }
+            if (type === "file" && !targetCard) {
+                // Soltado fuera de cualquier tarjeta carpeta: se queda donde estaba, no hay
+                // "mover a la carpeta activa" porque el documento ya vive en la carpeta activa.
+                return;
+            }
+            try {
+                if (type === "folder") {
+                    await this.orm.call("document.folder", "move_folder", [id, targetFolderId]);
+                } else {
+                    await this.orm.call("document.file", "move_file", [id, targetFolderId]);
+                }
+            } catch (error) {
+                this.notification.add(
+                    type === "folder" ? _t("No se pudo mover la carpeta.") : _t("No se pudo mover el documento."),
+                    { type: "danger" }
+                );
+            }
+            await this.loadFiles();
+            await this.props.list.model.load();
+            return;
+        }
+
         const items = ev.dataTransfer?.items;
         const entries =
             items && items.length

@@ -66,6 +66,22 @@ class DocumentFolder(models.Model):
         return self._get_kanban_action(folder_id)
 
     @api.model
+    def move_folder(self, folder_id, target_folder_id):
+        """Anida `folder_id` dentro de `target_folder_id` (drag&drop de carpeta sobre carpeta en el kanban).
+
+        Rechaza mover una carpeta sobre sí misma o sobre una de sus propias subcarpetas
+        (evitaría la recursividad ya cubierta por `_check_parent_recursion`, pero se corta
+        antes para devolver un error claro al JS en vez de una ValidationError genérica).
+        """
+        folder = self.browse(folder_id)
+        target = self.browse(target_folder_id)
+        if folder == target:
+            raise ValidationError("Una carpeta no se puede mover dentro de sí misma.")
+        if target.parent_path and folder.parent_path and target.parent_path.startswith(folder.parent_path):
+            raise ValidationError("No se puede mover una carpeta dentro de una de sus propias subcarpetas.")
+        folder.write({"parent_id": target.id})
+
+    @api.model
     def create_from_upload_tree(self, tree, folder_id):
         """Recrea recursivamente en `folder_id` un árbol de carpetas/archivos subido por drag&drop.
 

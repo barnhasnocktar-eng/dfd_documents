@@ -46,6 +46,11 @@ class DocumentFile(models.Model):
         attachment.res_id = document_file.id
         return document_file.id
 
+    @api.model
+    def move_file(self, file_id, target_folder_id):
+        """Mueve el documento `file_id` a `target_folder_id` (drag&drop de documento sobre carpeta en el kanban)."""
+        self.browse(file_id).write({"folder_id": target_folder_id})
+
     def action_download(self):
         """Descarga el adjunto asociado al documento (invocado al pulsar la tarjeta en el kanban)."""
         self.ensure_one()

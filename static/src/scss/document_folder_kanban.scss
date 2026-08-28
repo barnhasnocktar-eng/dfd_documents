@@ -42,6 +42,13 @@
         }
     }
 
+    .o_kanban_record[data-folder-res-id].o_dfd_folder_drag_over {
+        outline: 2px dashed var(--o-brand-primary, #714b67);
+        outline-offset: -4px;
+        background-color: rgba(113, 75, 103, 0.1);
+        border-radius: 4px;
+    }
+
     &.o_dfd_kanban_dragging {
         outline: 2px dashed var(--o-brand-primary, #714b67);
         outline-offset: -4px;
