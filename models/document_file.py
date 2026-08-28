@@ -36,6 +36,75 @@ class DocumentFile(models.Model):
         string="Empleados con acceso (heredado)",
     )
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        documents = super().create(vals_list)
+        for document in documents:
+            document._log_movement("create", "Documento creado")
+        return documents
+
+    def write(self, vals):
+        snapshots = self._prepare_movement_log_snapshots(vals)
+        result = super().write(vals)
+        self._write_movement_logs(snapshots)
+        return result
+
+    def unlink(self):
+        for document in self:
+            document._log_movement("unlink", "Documento eliminado")
+        return super().unlink()
+
+    def _get_movement_log_path(self):
+        """Ruta legible tipo 'Documentos / Empleados / Juan / archivo.pdf'."""
+        self.ensure_one()
+        folder_path = " / ".join(self.folder_id.get_path().mapped("name")) if self.folder_id else ""
+        return f"{folder_path} / {self.name}" if folder_path else self.name
+
+    def _log_movement(self, event_type, description):
+        """Crea una entrada de `document.movement.log` para `self` (un solo documento).
+        Ver equivalente en `DocumentFolder._log_movement` para el porqué del `sudo()`."""
+        self.ensure_one()
+        self.env["document.movement.log"].sudo().create({
+            "event_type": event_type,
+            "res_model": self._name,
+            "res_id": self.id,
+            "res_name": self.name,
+            "folder_path": self._get_movement_log_path(),
+            "user_id": self.env.user.id,
+            "description": description,
+        })
+
+    def _prepare_movement_log_snapshots(self, vals):
+        """Snapshot "antes" de nombre/carpeta, tomado antes de `super().write()`."""
+        if not (vals.keys() & {"name", "folder_id"}):
+            return []
+        return [
+            {
+                "document_id": document.id,
+                "old_name": document.name,
+                "old_path": document._get_movement_log_path(),
+            }
+            for document in self
+        ]
+
+    def _write_movement_logs(self, snapshots):
+        """Compara el snapshot "antes" contra el estado ya escrito y loguea rename/move."""
+        if not snapshots:
+            return
+        by_id = {snap["document_id"]: snap for snap in snapshots}
+        documents = self.browse(list(by_id.keys()))
+        for document in documents:
+            snap = by_id[document.id]
+            if snap["old_name"] != document.name:
+                document._log_movement(
+                    "rename", f"Renombrado de «{snap['old_name']}» a «{document.name}»"
+                )
+            new_path = document._get_movement_log_path()
+            if snap["old_path"] != new_path:
+                document._log_movement(
+                    "move", f"Movido de «{snap['old_path']}» a «{new_path}»"
+                )
+
     @api.model
     def create_from_upload(self, name, data, folder_id):
         """Crea el adjunto y el documento a partir de un archivo subido por drag&drop en el kanban.

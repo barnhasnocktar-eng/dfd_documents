@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_document_movement_log_list" model="ir.ui.view">
+        <field name="name">document.movement.log.list</field>
+        <field name="model">document.movement.log</field>
+        <field name="arch" type="xml">
+            <tree create="0" edit="0" delete="0" default_order="date desc">
+                <field name="date"/>
+                <field name="event_type"/>
+                <field name="res_model"/>
+                <field name="res_name"/>
+                <field name="folder_path"/>
+                <field name="user_id"/>
+                <field name="description"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_document_movement_log_form" model="ir.ui.view">
+        <field name="name">document.movement.log.form</field>
+        <field name="model">document.movement.log</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0" delete="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="date"/>
+                            <field name="event_type"/>
+                            <field name="user_id"/>
+                        </group>
+                        <group>
+                            <field name="res_model"/>
+                            <field name="res_name"/>
+                            <field name="folder_path"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="description"/>
+                        <field name="detail"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_document_movement_log_search" model="ir.ui.view">
+        <field name="name">document.movement.log.search</field>
+        <field name="model">document.movement.log</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="res_name"/>
+                <field name="folder_path"/>
+                <field name="user_id"/>
+                <filter string="Carpetas" name="filter_folders" domain="[('res_model', '=', 'document.folder')]"/>
+                <filter string="Documentos" name="filter_files" domain="[('res_model', '=', 'document.file')]"/>
+                <separator/>
+                <filter string="Fecha" name="filter_date" date="date"/>
+                <group expand="0" string="Agrupar por">
+                    <filter string="Tipo de evento" name="group_event_type" context="{'group_by': 'event_type'}"/>
+                    <filter string="Usuario" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Fecha" name="group_date" context="{'group_by': 'date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_document_movement_log" model="ir.actions.act_window">
+        <field name="name">Historial de movimientos</field>
+        <field name="res_model">document.movement.log</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_document_movement_log_search"/>
+    </record>
+</odoo>

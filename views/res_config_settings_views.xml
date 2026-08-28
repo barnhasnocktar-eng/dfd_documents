@@ -6,7 +6,7 @@
         <field name="inherit_id" ref="hr.res_config_settings_view_form"/>
         <field name="arch" type="xml">
             <xpath expr="//app[@name='hr']/block[@name='employee_rights_setting_container']" position="after">
-                <block title="Documentos" name="dfd_documents_setting_container">
+                <block title="Documentos" name="dfd_documents_setting_container" groups="base.group_system">
                     <setting id="employee_folder_parent_setting"
                              string="Carpeta de Empleados"
                              help="Carpeta donde se crearán las carpetas de cada empleado y sus subcarpetas.">
@@ -16,6 +16,11 @@
                              string="Dar permisos al gerente sobre todo su departamento al crear las carpetas"
                              help="Al crear o actualizar carpetas de empleados, da acceso automático al gerente del departamento (o al responsable directo si no hay departamento o gerente) sobre la carpeta correspondiente.">
                         <field name="x_grant_manager_department_permissions"/>
+                    </setting>
+                    <setting id="movement_log_retention_setting"
+                             string="Días de retención del historial de movimientos"
+                             help="Nº de días que se conservan las entradas del historial de movimientos antes de purgarse automáticamente cada día. 0 desactiva la purga.">
+                        <field name="x_movement_log_retention_days"/>
                     </setting>
                 </block>
             </xpath>

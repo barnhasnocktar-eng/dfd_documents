@@ -81,6 +81,13 @@ class DocumentFolder(models.Model):
         "del camino de navegación (ver `ir.rule` de lectura en data/access_permissions.xml).",
     )
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        folders = super().create(vals_list)
+        for folder in folders:
+            folder._log_movement("create", "Carpeta creada")
+        return folders
+
     def write(self, vals):
         # Corta aquí (y no solo en move_folder/rename wizard/wizard de permisos) para cubrir
         # también el form nativo y cualquier otra vía de escritura; permite crear contenido
@@ -110,13 +117,113 @@ class DocumentFolder(models.Model):
         if vals.keys() & {"is_locked", "allowed_group_ids", "allowed_employee_ids"}:
             guarded_folders |= self
         guarded_folders._check_can_manage_self()
-        return super().write(vals)
+
+        # Snapshot "antes" para el historial: hay que tomarlo antes de super().write(),
+        # porque después ya no se puede reconstruir el valor previo (p. ej. name viejo).
+        log_snapshots = self._prepare_movement_log_snapshots(vals)
+        result = super().write(vals)
+        self._write_movement_logs(log_snapshots)
+        return result
 
     def unlink(self):
         if self.filtered("is_locked"):
             raise UserError("No puedes editar o mover esta carpeta.")
         self._check_can_manage_self()
+        # La cascada de unlink se lleva también las subcarpetas y sus documentos: se loguea
+        # cada carpeta afectada (no solo las que se piden borrar explícitamente) antes de
+        # que super().unlink() las haga desaparecer, congelando su folder_path de una vez.
+        all_affected = self.search([("id", "child_of", self.ids)])
+        for folder in all_affected:
+            folder._log_movement("unlink", "Carpeta eliminada")
         return super().unlink()
+
+    def _get_movement_log_path(self):
+        """Ruta legible tipo 'Documentos / Empleados / Juan', para congelar en el log."""
+        self.ensure_one()
+        return " / ".join(self.get_path().mapped("name"))
+
+    def _log_movement(self, event_type, description, detail=False):
+        """Crea una entrada de `document.movement.log` para `self` (una sola carpeta).
+
+        Usa `sudo()` porque quien mueve/borra una carpeta no tiene por qué tener permiso
+        de escritura sobre el propio historial (solo lectura, reservada a administración).
+        """
+        self.ensure_one()
+        self.env["document.movement.log"].sudo().create({
+            "event_type": event_type,
+            "res_model": self._name,
+            "res_id": self.id,
+            "res_name": self.name,
+            "folder_path": self._get_movement_log_path(),
+            "user_id": self.env.user.id,
+            "description": description,
+            "detail": detail,
+        })
+
+    def _prepare_movement_log_snapshots(self, vals):
+        """Toma, ANTES de `super().write(vals)`, todo lo necesario para poder describir
+        después el cambio (nombre/ruta viejos, grupos/empleados antes). Devuelve una lista
+        de diccionarios listos para `_write_movement_logs`."""
+        snapshots = []
+        touches_rename_or_move = bool(vals.keys() & {"name", "parent_id"})
+        touches_lock = "is_locked" in vals
+        touches_permissions = bool(vals.keys() & {"allowed_group_ids", "allowed_employee_ids"})
+        if not (touches_rename_or_move or touches_lock or touches_permissions):
+            return snapshots
+
+        for folder in self:
+            old_name = folder.name
+            old_path = folder._get_movement_log_path()
+            old_groups = folder.allowed_group_ids.mapped("name")
+            old_employees = folder.allowed_employee_ids.mapped("name")
+            snapshots.append({
+                "folder_id": folder.id,
+                "old_name": old_name,
+                "old_path": old_path,
+                "old_locked": folder.is_locked,
+                "old_groups": old_groups,
+                "old_employees": old_employees,
+            })
+        return snapshots
+
+    def _write_movement_logs(self, snapshots):
+        """Compara cada snapshot "antes" (tomado por `_prepare_movement_log_snapshots`)
+        contra el estado ya escrito por `super().write()`, y crea las entradas de
+        historial que correspondan. Un mismo `write` puede disparar varios eventos a la
+        vez (p. ej. renombrar y mover en la misma llamada)."""
+        if not snapshots:
+            return
+        by_id = {snap["folder_id"]: snap for snap in snapshots}
+        folders = self.browse(list(by_id.keys()))
+        for folder in folders:
+            snap = by_id[folder.id]
+            new_path = folder._get_movement_log_path()
+
+            if snap["old_name"] != folder.name:
+                folder._log_movement(
+                    "rename",
+                    f"Renombrada de «{snap['old_name']}» a «{folder.name}»",
+                )
+            if snap["old_path"] != new_path:
+                folder._log_movement(
+                    "move",
+                    f"Movida de «{snap['old_path']}» a «{new_path}»",
+                )
+            if snap["old_locked"] != folder.is_locked:
+                event_type = "lock" if folder.is_locked else "unlock"
+                description = "Carpeta bloqueada" if folder.is_locked else "Carpeta desbloqueada"
+                folder._log_movement(event_type, description)
+
+            new_groups = folder.allowed_group_ids.mapped("name")
+            new_employees = folder.allowed_employee_ids.mapped("name")
+            if snap["old_groups"] != new_groups or snap["old_employees"] != new_employees:
+                detail = (
+                    f"Grupos antes: {', '.join(snap['old_groups']) or '(ninguno)'}\n"
+                    f"Grupos después: {', '.join(new_groups) or '(ninguno)'}\n"
+                    f"Empleados antes: {', '.join(snap['old_employees']) or '(ninguno)'}\n"
+                    f"Empleados después: {', '.join(new_employees) or '(ninguno)'}"
+                )
+                folder._log_movement("permissions", "Cambio de permisos", detail)
 
     @api.model
     def is_employee_related(self, folder_id):

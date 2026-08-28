@@ -18,6 +18,13 @@
               parent="menu_document_folder_root"
               sequence="10"/>
 
+    <menuitem id="menu_document_movement_log"
+              name="Historial"
+              action="action_document_movement_log"
+              parent="menu_document_folder_root"
+              groups="base.group_system"
+              sequence="20"/>
+
     <menuitem id="menu_document_configuration"
               name="Configuración"
               parent="menu_document_folder_root"

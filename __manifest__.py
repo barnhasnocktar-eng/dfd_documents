@@ -16,6 +16,7 @@
         # Views
         "views/document_folder_views.xml",
         "views/document_file_views.xml",
+        "views/document_movement_log_views.xml",
         "views/employee_default_folder_views.xml",
         "views/hr_employee_views.xml",
         "views/res_config_settings_views.xml",
@@ -29,6 +30,8 @@
         # Datos por defecto
         "data/document_folder_data.xml",
         "data/employee_default_folder_data.xml",
+        # Cron
+        "data/cron_document_movement_log_cleanup.xml",
     ],
     "assets": {
         "web.assets_backend": [

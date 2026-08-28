@@ -23,3 +23,11 @@ class ResConfigSettings(models.TransientModel):
         "directo, el permiso se da directamente sobre la carpeta del propio empleado. Aplica "
         "también sobre carpetas ya creadas.",
     )
+    x_movement_log_retention_days = fields.Integer(
+        string="Días de retención del historial de movimientos",
+        config_parameter="dfd_documents.movement_log_retention_days",
+        default=30,
+        help="Nº de días que se conservan las entradas del historial de movimientos de "
+        "carpetas y documentos antes de ser purgadas automáticamente cada día. 0 desactiva "
+        "la purga (no se borra nunca).",
+    )
