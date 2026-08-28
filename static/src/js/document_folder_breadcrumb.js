@@ -505,6 +505,48 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
 DocumentFolderKanbanRenderer.template = "dfd_documents.DocumentFolderKanbanRenderer";
 
 class DocumentFolderKanbanController extends KanbanController {
+    setup() {
+        super.setup();
+        this.orm = useService("orm");
+        this.notification = useService("notification");
+
+        // El buscador nativo del control panel solo filtra document.folder por nombre dentro
+        // del nivel actual (domain fijo de la action), así que nunca encuentra documentos ni
+        // navega a otra carpeta. Se intercepta aquí: en vez de dejar que el filtro nativo se
+        // aplique, se resuelve el texto contra carpetas y documentos (server-side) y se navega
+        // directo al resultado, con el mismo comportamiento "ir dentro" que un click de tarjeta.
+        this._onSearchUpdate = () => this.onSearchUpdate();
+        onMounted(() => {
+            this.env.searchModel.addEventListener("update", this._onSearchUpdate);
+        });
+        onWillUnmount(() => {
+            this.env.searchModel.removeEventListener("update", this._onSearchUpdate);
+        });
+    }
+
+    // Extrae el texto libre tecleado en la barra de búsqueda (facet tipo "field"), lo resuelve
+    // contra carpetas/documentos y navega. Limpia siempre la query para no dejar el filtro
+    // nativo aplicado (ya sea porque se navegó a otro sitio o porque no hubo resultados).
+    async onSearchUpdate() {
+        const searchTerm = this.env.searchModel.facets
+            .filter((facet) => facet.type === "field")
+            .flatMap((facet) => facet.values)
+            .join(" ")
+            .trim();
+        if (!searchTerm) {
+            return;
+        }
+        this.env.searchModel.clearQuery();
+        const action = await this.orm.call("document.folder", "search_and_go", [searchTerm]);
+        if (!action) {
+            this.notification.add(_t("No se encontró ninguna carpeta o documento con ese nombre."), {
+                type: "warning",
+            });
+            return;
+        }
+        await this.actionService.doAction(action, { clearBreadcrumbs: true });
+    }
+
     // El wizard de creación de carpeta (on_create) se abre en un diálogo modal vía actionService;
     // KanbanController.createRecord dispara ese doAction pero la promesa se resuelve al ABRIR el
     // diálogo, no al cerrarlo (el actionService no espera al usuario) — envolver "await

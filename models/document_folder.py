@@ -94,6 +94,25 @@ class DocumentFolder(models.Model):
         return folders
 
     @api.model
+    def search_and_go(self, search_term):
+        """Resuelve el texto tecleado en el buscador del kanban de carpetas.
+
+        Si hace match con una carpeta, devuelve la acción para entrar en ella. Si hace
+        match con un documento (document.file), devuelve la acción de la carpeta que lo
+        contiene. Ante varios resultados se queda con el primero (orden alfabético por
+        nombre). Sin ningún match devuelve False, para que el JS avise "sin resultados".
+        """
+        folder = self.search([("name", "ilike", search_term)], order="name", limit=1)
+        if folder:
+            return self._get_kanban_action(folder.id)
+        document = self.env["document.file"].search(
+            [("name", "ilike", search_term)], order="name", limit=1
+        )
+        if document:
+            return self._get_kanban_action(document.folder_id.id)
+        return False
+
+    @api.model
     def create_from_upload_tree(self, tree, folder_id):
         """Recrea recursivamente en `folder_id` un árbol de carpetas/archivos subido por drag&drop.
 
