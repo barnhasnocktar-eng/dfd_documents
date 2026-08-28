@@ -12,6 +12,11 @@
                              help="Carpeta donde se crearán las carpetas de cada empleado y sus subcarpetas.">
                         <field name="x_employee_folder_parent_id" options="{'no_open': True}"/>
                     </setting>
+                    <setting id="grant_manager_department_permissions_setting"
+                             string="Dar permisos al gerente sobre todo su departamento al crear las carpetas"
+                             help="Al crear o actualizar carpetas de empleados, da acceso automático al gerente del departamento (o al responsable directo si no hay departamento o gerente) sobre la carpeta correspondiente.">
+                        <field name="x_grant_manager_department_permissions"/>
+                    </setting>
                 </block>
             </xpath>
         </field>

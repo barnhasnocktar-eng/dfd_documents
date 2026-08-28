@@ -84,6 +84,21 @@ Backend del drag&drop de documento sobre carpeta. Corta a mano el caso `target_f
 ### `action_download` — DocumentFile
 Devuelve una acción `ir.actions.act_url` hacia `/web/content/{attachment_id}?download=true`; es lo que se dispara al pulsar una tarjeta de documento en el kanban.
 
+### `x_grant_manager_folder_permissions` — HrEmployee (`hr_employee.py`)
+Aplica la regla de negocio del ajuste `dfd_documents.grant_manager_department_permissions`
+("Dar permisos al gerente sobre todo su departamento al crear las carpetas", checkbox en
+Ajustes junto a "Carpeta de Empleados", desactivado por defecto): si el empleado tiene
+departamento **y** ese departamento tiene `manager_id`, da acceso (`allowed_employee_ids`,
+`(4, manager.id)`) al gerente sobre la carpeta del **departamento** (alcanza a todas las
+carpetas de empleado de dentro por herencia acumulativa normal, sin tener que tocarlas una a
+una). Si no (sin departamento, o departamento sin gerente) pero el empleado tiene manager
+directo (`parent_id`), da el acceso directamente sobre la carpeta del **empleado**. Sin
+departamento-con-gerente ni manager directo, no hace nada. Solo añade, nunca quita, y evita
+`write` redundante si el gerente ya está en la lista. Llamado desde `x_sync_default_folders`
+en cada pasada cuando el ajuste está activo — no solo al crear, también sobre carpetas ya
+existentes, así que activar el checkbox y volver a lanzar "Actualizar/Crear carpetas" (o el
+botón individual de un empleado) basta para poner al día los permisos ya creados.
+
 ### `x_sync_default_folders` / `x_get_department_folder` — HrEmployee (`hr_employee.py`)
 Único punto donde se crea la carpeta raíz de un empleado (dentro de `dfd_documents.document_folder_empleados`, o del parámetro configurado); lo llaman tanto `x_action_create_employee_folder` (botón manual en la ficha de `hr.employee`) como `EmployeeFolderSyncWizard.action_sync_folders` (acción masiva "Actualizar/Crear carpetas" del menú de Configuración), así que un único `create` cubre ambos flujos. Si el empleado tiene `department_id`, su carpeta se crea dentro de una subcarpeta con el nombre del departamento (bajo `root_folder`), buscada/creada bajo demanda por `x_get_department_folder` (`search` por `parent_id` + `name`, sin caché entre empleados del mismo lote: asume volumen bajo de departamentos, igual asunción que `get_folder_tree` en `document_folder.py`). Sin departamento, la carpeta del empleado cuelga directo de `root_folder`, igual que antes de este cambio. Al crear la carpeta del empleado, fija `allowed_employee_ids: [(6, 0, employee.ids)]` en el propio `create`: el empleado queda con acceso automático a su carpeta sin pasar luego por el wizard de Permisos a mano. Si el empleado aún no tiene `user_id`, esto no da acceso a nadie todavía (ver regla en `document_folder.py`), pero queda marcado para cuando se le asigne uno. La carpeta de departamento NO recibe este permiso explícito ni ningún otro: solo hereda lo que tenga `root_folder` (normalmente nada salvo `base.group_system`), así que por defecto ningún empleado ve la carpeta de un departamento ajeno, aunque sí la suya propia por su propio permiso directo. Las subcarpetas por defecto que se crean después (`document.employee.default.folder`) NO reciben este permiso explícito: lo heredan automáticamente de la carpeta del empleado por la herencia acumulativa normal (`effective_employee_ids`), así que no hace falta repetirlo ahí.
 

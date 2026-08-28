@@ -55,6 +55,31 @@ class HrEmployee(models.Model):
             })
         return department_folder
 
+    def x_grant_manager_folder_permissions(self, department_folder, employee_folder):
+        """Da acceso (`allowed_employee_ids`) al gerente correspondiente, según la regla de
+        negocio configurable en Ajustes (`dfd_documents.grant_manager_department_permissions`):
+
+        - Si el empleado tiene departamento Y ese departamento tiene `manager_id`: el permiso
+          se da sobre `department_folder` (con lo que alcanza también a todas las carpetas de
+          empleado dentro, por herencia acumulativa normal).
+        - Si no (sin departamento, o departamento sin `manager_id`) pero el empleado tiene
+          manager directo (`parent_id`): el permiso se da directamente sobre `employee_folder`.
+        - Si no hay ni una cosa ni la otra, no se toca nada.
+
+        Solo añade (nunca quita) y evita escrituras redundantes si el gerente ya tiene el
+        permiso, para no disparar de más el recompute de `effective_employee_ids`.
+        """
+        self.ensure_one()
+        department_manager = self.department_id.manager_id
+        if department_manager:
+            target_folder, manager = department_folder, department_manager
+        elif self.parent_id:
+            target_folder, manager = employee_folder, self.parent_id
+        else:
+            return
+        if target_folder and manager not in target_folder.allowed_employee_ids:
+            target_folder.write({"allowed_employee_ids": [(4, manager.id)]})
+
     def x_sync_default_folders(self):
         """Crea o completa la estructura de carpetas por defecto de cada empleado en `self`.
 
@@ -65,16 +90,24 @@ class HrEmployee(models.Model):
         Si el empleado no tiene carpeta, la crea desde cero con todas las subcarpetas
         configuradas. Si ya la tiene, comprueba cuáles de las subcarpetas configuradas le
         faltan (por nombre) y crea solo esas; nunca elimina carpetas existentes.
+
+        Si el ajuste "Dar permisos al gerente sobre todo su departamento al crear las carpetas"
+        está activo, además aplica (o reaplica) `x_grant_manager_folder_permissions` en cada
+        pasada, tanto para carpetas recién creadas como para las que ya existían de antes.
         """
         root_folder = self.x_get_employee_folder_parent()
         default_folders = self.env["document.employee.default.folder"].search([])
+        grant_manager_permissions = self.env["ir.config_parameter"].sudo().get_param(
+            "dfd_documents.grant_manager_department_permissions"
+        )
         DocumentFolder = self.env["document.folder"]
         for employee in self:
             employee_folder = employee.x_document_folder_id
+            department_folder = DocumentFolder
+            if employee.department_id:
+                department_folder = self.x_get_department_folder(root_folder, employee.department_id)
             if not employee_folder:
-                employee_parent_folder = root_folder
-                if employee.department_id:
-                    employee_parent_folder = self.x_get_department_folder(root_folder, employee.department_id)
+                employee_parent_folder = department_folder if employee.department_id else root_folder
                 # allowed_employee_ids: el propio empleado queda con acceso automático a su
                 # carpeta desde el momento en que se crea, sin tener que pasar luego por el
                 # wizard de Permisos a mano. Si el empleado aún no tiene user_id asignado esto
@@ -94,3 +127,6 @@ class HrEmployee(models.Model):
                     {"name": default_folder.name, "parent_id": employee_folder.id}
                     for default_folder in missing_folders
                 ])
+
+            if grant_manager_permissions:
+                employee.x_grant_manager_folder_permissions(department_folder, employee_folder)
