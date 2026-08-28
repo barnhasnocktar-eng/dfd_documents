@@ -4,7 +4,7 @@
         <field name="name">document.employee.folder.sync.wizard.form</field>
         <field name="model">document.employee.folder.sync.wizard</field>
         <field name="arch" type="xml">
-            <form string="Crear carpetas de empleados">
+            <form string="Actualizar/Crear carpetas de empleados">
                 <p>
                     Se creará la estructura definida de carpetas para todos los empleados.
                     Si el empleado no tiene carpeta se creará la estructura de 0, y si el
@@ -20,7 +20,7 @@
     </record>
 
     <record id="action_employee_folder_sync_wizard" model="ir.actions.act_window">
-        <field name="name">Crear carpetas de empleados</field>
+        <field name="name">Actualizar/Crear carpetas de empleados</field>
         <field name="res_model">document.employee.folder.sync.wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>

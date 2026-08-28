@@ -23,15 +23,20 @@
               parent="menu_document_folder_root"
               sequence="30"/>
 
-    <menuitem id="menu_employee_default_folder"
-              name="Carpetas por defecto de Empleados"
-              action="action_employee_default_folder"
+    <menuitem id="menu_employee_configuration"
+              name="Empleados"
               parent="menu_document_configuration"
               sequence="10"/>
 
+    <menuitem id="menu_employee_default_folder"
+              name="Carpetas por defecto"
+              action="action_employee_default_folder"
+              parent="menu_employee_configuration"
+              sequence="10"/>
+
     <menuitem id="menu_employee_folder_sync_wizard"
-              name="Crear carpetas de empleados"
+              name="Actualizar/Crear carpetas"
               action="action_employee_folder_sync_wizard"
-              parent="menu_document_configuration"
+              parent="menu_employee_configuration"
               sequence="20"/>
 </odoo>
