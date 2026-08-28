@@ -12,8 +12,12 @@ Campos destacados:
 - `parent_id` (many2one a sí mismo, `ondelete="cascade"`): borrar una carpeta borra en cascada sus subcarpetas y, por cascada de `document.file.folder_id`, sus documentos.
 - `parent_path` (`_parent_store`): usado para resolver el breadcrumb (`get_path`) y para detectar si un destino de drag&drop es descendiente del origen (`move_folder`).
 - `child_count` / `file_count` (computed): contadores mostrados en la tarjeta kanban.
+- `allowed_group_ids` (`res.groups`, m2m): grupos permitidos asignados explícitamente a **esta** carpeta desde el wizard de Permisos. No incluye lo heredado.
+- `effective_group_ids` (`res.groups`, m2m, computed **store=True**): unión de `allowed_group_ids` propio + `effective_group_ids` del `parent_id` + `base.group_system` (siempre presente, ver `_get_always_allowed_groups`). Es el campo real contra el que filtra la `ir.rule`. Al ser store y depender de `parent_id.effective_group_ids`, escribir `allowed_group_ids` en una carpeta recalcula en cascada todas sus descendientes.
 
-Seguridad: `base.group_user` con acceso total (CRUD); sin grupos ni reglas de registro (`ir.rule`) adicionales — cualquier usuario interno ve todas las carpetas.
+Seguridad: `base.group_user` con acceso total (CRUD) a nivel de `ir.model.access`, pero filtrado por `ir.rule` global (`data/access_permissions.xml`) que exige pertenecer a algún grupo de `effective_group_ids` de la carpeta. **Herencia acumulativa hacia abajo**: los grupos permitidos de una carpeta se suman a los de sus descendientes (subcarpetas y documentos); no se pueden "quitar" grupos heredados de un antepasado, solo añadir más. Una carpeta sin grupos propios ni heredados de ningún antepasado solo es visible para `base.group_system` (administradores).
+
+**Tener grupo permitido en una carpeta X da acceso a su CONTENIDO (subcarpetas y documentos dentro de X), nunca a X misma.** Para renombrar, mover, bloquear (`is_locked`), eliminar X o cambiar los `allowed_group_ids` propios de X hace falta grupo permitido en el **padre** de X (o `base.group_system`) — igual que hace falta para poder crear algo dentro de ese padre. Sin padre (carpeta de primer nivel), solo `base.group_system` puede tocarla. Reforzado en código por `_check_can_manage_self()`, invocado desde `write`/`unlink` de `DocumentFolder` y desde el `default_get` del wizard de permisos; es independiente y se suma al bloqueo ya existente por `is_locked`.
 
 ### DocumentFile (`document.file`)
 Documento dentro de una carpeta; envoltorio de negocio sobre un `ir.attachment`.
@@ -31,10 +35,21 @@ Wizard modal invocado desde el botón "Crear" del kanban de carpetas (`on_create
 Campos destacados:
 - `parent_id`: precargado en `default_get` desde `active_folder_id` del contexto de navegación (la carpeta abierta en ese momento), para que la nueva carpeta se cree en el nivel actual sin pedirlo al usuario.
 
+### DocumentFolderPermissionsWizard (`document.folder.permissions.wizard`, TransientModel)
+Wizard modal invocado desde la entrada "Permisos" del cogMenu del kanban (junto a "Renombrar" y "Eliminar"), igual mecanismo que estas (`document_folder_rename_menu.js`). Deja ver/editar `allowed_group_ids` de la carpeta activa (`active_folder_id`).
+
+Campos destacados:
+- `allowed_group_ids`: precargado desde `folder.allowed_group_ids` (no `effective_group_ids`: no se mezcla lo propio con lo heredado). `action_save_permissions` escribe el many2many completo con `(6, 0, ids)`.
+- `inherited_group_ids`: solo lectura, muestra `folder.parent_id.effective_group_ids` (o `base.group_system` si es de primer nivel) para que el usuario entienda qué grupos ya tienen acceso sin necesidad de marcarlos aquí.
+- `default_get` llama a `folder._check_can_manage_self()`: si el usuario no tiene grupo permitido en el **padre** de la carpeta (ver más abajo), el wizard ni siquiera abre.
+
 ## Métodos y lógica relevante
 
 ### `_check_parent_recursion` — DocumentFolder
 Constraint sobre `parent_id` que usa el helper nativo `_check_recursion()` de Odoo para impedir ciclos en el árbol.
+
+### `_compute_effective_group_ids` / `_check_can_manage_self` — DocumentFolder
+`_compute_effective_group_ids` arma la unión acumulativa de grupos (ver campos arriba). `_check_can_manage_self` es el guardián de "el permiso da acceso al contenido, no a la carpeta en sí": comprueba que el usuario pertenezca a algún grupo de `effective_group_ids` del **padre** (no de la propia carpeta), o sea `base.group_system`, antes de dejar pasar `write`/`unlink` sobre la carpeta o abrir el wizard de permisos sobre ella.
 
 ### `_get_kanban_action` / `action_open_folder` / `action_go_to_folder` — DocumentFolder
 Patrón de navegación del módulo: no hay vista de detalle por carpeta, sino que **toda navegación reconstruye la misma acción `action_document_folder`** cambiando su `domain` (`parent_id = folder_id`) y su `context` (`active_folder_id`). `action_open_folder` la dispara al pulsar una tarjeta; `action_go_to_folder` es la usada por el breadcrumb y el árbol lateral para saltar a cualquier nivel (incluida la raíz, con `folder_id=False`).
@@ -88,5 +103,5 @@ Reglas de negocio del drag&drop reforzadas también en cliente (antes de llamar 
 - Todo el módulo gira en torno a una única acción de navegación (`action_document_folder`) reconstruida con distinto `domain`/`context` en cada salto de nivel; no busques vistas de detalle por carpeta porque no existen en el flujo normal.
 - El sidebar de árbol (`get_folder_tree`) trae **todas** las carpetas del sistema sin paginar: si el volumen de carpetas crece mucho, este método es el primer candidato a revisar por rendimiento.
 - Cualquier cambio en el nombre de clase, `js_class` o registro `views` de este módulo debe revisarse junto con `spiffy_theme_backend`, ya que este último parchea comportamiento nativo de breadcrumbs desde JS.
-- No hay `ir.rule` ni grupos de seguridad propios: todo `base.group_user` ve y edita todo el árbol de carpetas y documentos. Si se pide restringir por usuario/carpeta, hay que añadirlo desde cero.
+- Hay `ir.rule` global (`data/access_permissions.xml`) sobre `document.folder` y `document.file` filtrando por `effective_group_ids`. **Ojo con la asimetría clave**: `effective_group_ids` (lectura/visibilidad, vía `ir.rule`) incluye la propia carpeta, pero `_check_can_manage_self` (escritura sobre la carpeta en sí) exige grupo en el **padre**, no en la propia carpeta — son dos comprobaciones distintas a propósito, no un descuido. Si se toca una sin la otra se rompe la regla de negocio "el permiso da acceso al contenido, no al continente".
 - Los archivos JS de assets declarados en `__manifest__.py` no se corresponden 1:1 con nombres "obvios": `document_folder_kanban.scss` es solo estilos; la lógica del renderer/controller kanban vive en `document_folder_breadcrumb.js` pese a su nombre (exporta tanto `DocumentFolderBreadcrumb` como `DocumentFolderKanbanRenderer`/`Controller` y hace el `registry.category("views").add(...)`).

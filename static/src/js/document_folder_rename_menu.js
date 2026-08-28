@@ -71,6 +71,40 @@ export const renameFolderMenuItem = {
 cogMenuRegistry.add("dfd-rename-folder-menu", renameFolderMenuItem, { sequence: 2 });
 
 // Mismo mecanismo que RenameFolderMenuItem (cogMenu item propio, ver comentario más arriba),
+// para abrir el wizard de grupos permitidos de la carpeta activa.
+export class PermissionsFolderMenuItem extends Component {
+    static template = "dfd_documents.PermissionsFolderMenuItem";
+    static components = { DropdownItem };
+
+    setup() {
+        this.action = useService("action");
+    }
+
+    async openPermissions() {
+        const { context } = this.env.searchModel;
+        const result = await this.action.doAction(
+            "dfd_documents.action_document_folder_permissions_wizard",
+            { additionalContext: context }
+        );
+        return result;
+    }
+}
+
+export const permissionsFolderMenuItem = {
+    Component: PermissionsFolderMenuItem,
+    groupNumber: STATIC_ACTIONS_GROUP_NUMBER,
+    isDisplayed: ({ config, isSmall, searchModel }) =>
+        !isSmall &&
+        config.actionType === "ir.actions.act_window" &&
+        config.viewType === "kanban" &&
+        searchModel &&
+        searchModel.resModel === "document.folder" &&
+        Boolean(searchModel.context.active_folder_id),
+};
+
+cogMenuRegistry.add("dfd-permissions-folder-menu", permissionsFolderMenuItem, { sequence: 3 });
+
+// Mismo mecanismo que RenameFolderMenuItem (cogMenu item propio, ver comentario más arriba),
 // para ofrecer "Eliminar" también fuera de la raíz, con la misma confirmación y borrado que ya
 // usa el icono de papelera del kanban (deleteRecord en document_folder_breadcrumb.js), ya que
 // este menú no tiene acceso a ese controller.
@@ -116,4 +150,4 @@ export const deleteFolderMenuItem = {
         Boolean(searchModel.context.active_folder_id),
 };
 
-cogMenuRegistry.add("dfd-delete-folder-menu", deleteFolderMenuItem, { sequence: 3 });
+cogMenuRegistry.add("dfd-delete-folder-menu", deleteFolderMenuItem, { sequence: 4 });

@@ -28,31 +28,85 @@ class DocumentFolder(models.Model):
         default=False,
         help="Si está marcado, la carpeta no se puede renombrar, mover ni eliminar. Sí se pueden crear carpetas o documentos dentro.",
     )
+    allowed_group_ids = fields.Many2many(
+        "res.groups",
+        "document_folder_allowed_group_rel",
+        "folder_id",
+        "group_id",
+        string="Grupos permitidos",
+        help="Grupos con acceso a esta carpeta y a su contenido, además de los que ya tengan "
+        "acceso por ser grupo permitido de alguna carpeta antepasada. Los grupos de sistema "
+        "(p. ej. Administración/Ajustes técnicos) siempre tienen acceso, estén o no en esta lista.",
+    )
+    effective_group_ids = fields.Many2many(
+        "res.groups",
+        "document_folder_effective_group_rel",
+        "folder_id",
+        "group_id",
+        string="Grupos con acceso (heredado)",
+        compute="_compute_effective_group_ids",
+        store=True,
+        recursive=True,
+        help="Unión de los grupos permitidos de esta carpeta y de todas sus antepasadas, "
+        "más los grupos de sistema siempre presentes.",
+    )
 
     def write(self, vals):
-        # Corta aquí (y no solo en move_folder/rename wizard) para cubrir también el form nativo
-        # y cualquier otra vía de escritura; permite crear contenido dentro, solo bloquea la propia carpeta.
-        # Compara contra el valor actual antes de bloquear: la carga de datos XML (noupdate="0")
-        # reescribe name/parent_id en cada actualización del módulo aunque no cambien, y eso no
-        # debe chocar contra el bloqueo (que solo tiene sentido ante un cambio real de valor).
-        changed_keys = vals.keys() & {"name", "parent_id"}
-        if changed_keys:
-            def _has_real_change(folder):
-                for key in changed_keys:
-                    current = folder[key].id if key == "parent_id" else folder[key]
-                    if current != vals[key]:
-                        return True
-                return False
+        # Corta aquí (y no solo en move_folder/rename wizard/wizard de permisos) para cubrir
+        # también el form nativo y cualquier otra vía de escritura; permite crear contenido
+        # dentro, solo bloquea la propia carpeta.
+        # name/parent_id se comparan contra el valor actual antes de bloquear: la carga de datos
+        # XML (noupdate="0") reescribe esos dos en cada actualización del módulo aunque no
+        # cambien, y eso no debe chocar contra el bloqueo (solo tiene sentido ante cambio real).
+        # is_locked/allowed_group_ids no los toca ninguna carga XML idempotente, así que ahí
+        # basta con que la clave esté presente en vals.
+        rename_or_move_keys = vals.keys() & {"name", "parent_id"}
+        renamed_or_moved = self.filtered(
+            lambda f: any(
+                (f[key].id if key == "parent_id" else f[key]) != vals[key]
+                for key in rename_or_move_keys
+            )
+        ) if rename_or_move_keys else self.browse()
 
-            locked = self.filtered(lambda folder: folder.is_locked and _has_real_change(folder))
-            if locked:
-                raise UserError("No puedes editar o mover esta carpeta.")
+        locked = renamed_or_moved.filtered("is_locked")
+        if locked:
+            raise UserError("No puedes editar o mover esta carpeta.")
+
+        # Cambios que afectan a la carpeta en sí (no a su contenido) exigen permiso en el
+        # padre: renombrar/mover, is_locked y allowed_group_ids (los propios permisos de la
+        # carpeta también se gestionan "desde fuera", no desde dentro de ella misma).
+        guarded_folders = renamed_or_moved
+        if vals.keys() & {"is_locked", "allowed_group_ids"}:
+            guarded_folders |= self
+        guarded_folders._check_can_manage_self()
         return super().write(vals)
 
     def unlink(self):
         if self.filtered("is_locked"):
             raise UserError("No puedes editar o mover esta carpeta.")
+        self._check_can_manage_self()
         return super().unlink()
+
+    def _check_can_manage_self(self):
+        """El grupo permitido en una carpeta da acceso a su CONTENIDO (subcarpetas y
+        documentos), nunca a la carpeta misma: para renombrarla, moverla, bloquearla,
+        eliminarla o cambiar sus propios `allowed_group_ids` hace falta grupo permitido
+        en su carpeta PADRE (o `base.group_system`), igual que para crear algo dentro
+        de ese padre. Sin padre (carpeta de primer nivel) solo puede tocarla `base.group_system`.
+        """
+        if self.env.user.has_group("base.group_system"):
+            return
+        user_group_ids = set(self.env.user.groups_id.ids)
+        for folder in self:
+            parent = folder.parent_id
+            allowed_ids = set(parent.effective_group_ids.ids) if parent else set(
+                self._get_always_allowed_groups().ids
+            )
+            if not (user_group_ids & allowed_ids):
+                raise UserError(
+                    "No tienes permiso para modificar esta carpeta. "
+                    "El permiso sobre una carpeta da acceso a su contenido, no a la carpeta en sí."
+                )
 
     @api.depends("child_ids")
     def _compute_child_count(self):
@@ -68,6 +122,28 @@ class DocumentFolder(models.Model):
     def _check_parent_recursion(self):
         if not self._check_recursion():
             raise ValidationError("No se puede crear una recursividad de carpetas.")
+
+    @api.model
+    def _get_always_allowed_groups(self):
+        """Grupos de sistema que siempre tienen acceso a cualquier carpeta, tenga o no
+        grupos permitidos propios asignados (p. ej. Administración/Ajustes técnicos)."""
+        return self.env.ref("base.group_system")
+
+    @api.depends("allowed_group_ids", "parent_id.effective_group_ids")
+    def _compute_effective_group_ids(self):
+        always_allowed = self._get_always_allowed_groups()
+        for folder in self:
+            if folder.parent_id:
+                inherited = folder.parent_id.effective_group_ids
+            else:
+                inherited = always_allowed
+            folder.effective_group_ids = inherited | folder.allowed_group_ids | always_allowed
+
+    def _is_accessible_by_current_user(self):
+        """True si el usuario actual pertenece a algún grupo efectivo (propio o heredado) de `self`."""
+        self.ensure_one()
+        user_group_ids = set(self.env.user.groups_id.ids)
+        return bool(user_group_ids & set(self.effective_group_ids.ids))
 
     def get_path(self):
         """Devuelve el camino de carpetas desde la raíz hasta esta carpeta (incluida), para el breadcrumb."""

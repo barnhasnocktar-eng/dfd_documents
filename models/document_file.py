@@ -25,6 +25,11 @@ class DocumentFile(models.Model):
     )
     mimetype = fields.Char(related="attachment_id.mimetype", string="Tipo de archivo", readonly=True)
     file_size = fields.Integer(related="attachment_id.file_size", string="Tamaño", readonly=True)
+    effective_group_ids = fields.Many2many(
+        "res.groups",
+        related="folder_id.effective_group_ids",
+        string="Grupos con acceso (heredado)",
+    )
 
     @api.model
     def create_from_upload(self, name, data, folder_id):

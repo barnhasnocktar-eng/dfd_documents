@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_document_folder_permissions_wizard_form" model="ir.ui.view">
+        <field name="name">document.folder.permissions.wizard.form</field>
+        <field name="model">document.folder.permissions.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Permisos de la carpeta">
+                <field name="folder_id" invisible="1"/>
+                <group>
+                    <field name="inherited_group_ids" widget="many2many_tags" readonly="1"
+                        string="Grupos heredados de carpetas antepasadas"/>
+                    <field name="allowed_group_ids" widget="many2many_tags"
+                        string="Grupos permitidos en esta carpeta"
+                        placeholder="Añade grupos con acceso a esta carpeta..."/>
+                </group>
+                <footer>
+                    <button string="Guardar" type="object" name="action_save_permissions" class="btn-primary"/>
+                    <button string="Cancelar" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Mismo motivo que el wizard de renombrar: el CogMenu de KanbanView no recibe bindings
+         de ir.actions.act_window, así que se invoca por xmlid desde el cogMenu registry
+         (document_folder_rename_menu.js). -->
+    <record id="action_document_folder_permissions_wizard" model="ir.actions.act_window">
+        <field name="name">Permisos de la carpeta</field>
+        <field name="res_model">document.folder.permissions.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>
