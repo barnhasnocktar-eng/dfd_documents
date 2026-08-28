@@ -586,20 +586,30 @@ class DocumentFolderKanbanController extends KanbanController {
             await this.model.root.deleteRecords([record]);
             notifyFolderTreeChanged();
         };
+        const confirmEmployeeDeletion = () => {
+            this.dialog.add(ConfirmationDialog, {
+                title: _t("Bye-bye, record!"),
+                body: _t(
+                    "La carpeta que estás intentando borrar está asociada a uno o varios " +
+                    "empleados. Si la borras será irreversible. ¿Estás seguro?"
+                ),
+                confirmLabel: _t("No, keep it"),
+                confirm: () => {},
+                cancelLabel: _t("Delete"),
+                cancel: doDelete,
+            });
+        };
         const isEmployeeRelated = await this.orm.call("document.folder", "is_employee_related", [record.resId]);
-        const body = isEmployeeRelated
-            ? _t(
-                  "La carpeta que estás intentando borrar está asociada a uno o varios " +
-                  "empleados. Si la borras será irreversible. ¿Estás seguro?"
-              )
-            : deleteConfirmationMessage;
+        // Doble confirmación: primero el diálogo normal y, solo si ahí se elige "Delete", se
+        // encadena el segundo diálogo (el aviso específico de empleados) que ya ejecuta el
+        // borrado real.
         this.dialog.add(ConfirmationDialog, {
             title: _t("Bye-bye, record!"),
-            body,
+            body: deleteConfirmationMessage,
             confirmLabel: _t("No, keep it"),
             confirm: () => {},
             cancelLabel: _t("Delete"),
-            cancel: doDelete,
+            cancel: isEmployeeRelated ? confirmEmployeeDeletion : doDelete,
         });
     }
 }

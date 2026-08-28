@@ -154,19 +154,30 @@ export class DeleteFolderMenuItem extends Component {
         // "confirm", sin prop para cambiarlo (ver web.ConfirmationDialog): para que el botón
         // resaltado sea "No, manténgalo" y no "Eliminar", se invierten los slots — "confirm"
         // (resaltado) cierra sin borrar, "cancel" (secundario) ejecuta el borrado real.
-        const body = (await this.orm.call("document.folder", "is_employee_related", [folderId]))
-            ? _t(
-                  "La carpeta que estás intentando borrar está asociada a uno o varios " +
-                  "empleados. Si la borras será irreversible. ¿Estás seguro?"
-              )
-            : _t("¿Seguro que quieres eliminar esta carpeta y todo su contenido?");
+        const confirmEmployeeDeletion = () => {
+            this.dialog.add(ConfirmationDialog, {
+                title: _t("Eliminar carpeta"),
+                body: _t(
+                    "La carpeta que estás intentando borrar está asociada a uno o varios " +
+                    "empleados. Si la borras será irreversible. ¿Estás seguro?"
+                ),
+                confirmLabel: _t("No, manténgalo"),
+                confirm: () => {},
+                cancelLabel: _t("Eliminar"),
+                cancel: doDelete,
+            });
+        };
+        const isEmployeeRelated = await this.orm.call("document.folder", "is_employee_related", [folderId]);
+        // Doble confirmación: primero el diálogo normal y, solo si ahí se elige "Eliminar",
+        // se encadena el segundo diálogo (el aviso específico de empleados) que ya ejecuta
+        // el borrado real.
         this.dialog.add(ConfirmationDialog, {
             title: _t("Eliminar carpeta"),
-            body,
+            body: _t("¿Seguro que quieres eliminar esta carpeta y todo su contenido?"),
             confirmLabel: _t("No, manténgalo"),
             confirm: () => {},
             cancelLabel: _t("Eliminar"),
-            cancel: doDelete,
+            cancel: isEmployeeRelated ? confirmEmployeeDeletion : doDelete,
         });
     }
 }

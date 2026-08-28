@@ -2,7 +2,7 @@
 # Todos los derechos reservados. Está prohibido la distribución o modificación de este código sin permiso
 {
     "name": "Difadi - Gestor de Documentos",
-    "version": "17.0.1.17.0",
+    "version": "17.0.1.17.2",
     "license": "LGPL-3",
     "author": "Difadi.com",
     "website": "https://difadi.com",
