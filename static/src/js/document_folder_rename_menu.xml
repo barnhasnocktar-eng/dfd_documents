@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="dfd_documents.RenameFolderMenuItem">
+        <DropdownItem class="'o_dfd_rename_folder_menu'" onSelected.bind="renameFolder">
+            <i class="fa fa-fw fa-pencil me-1"/>Renombrar
+        </DropdownItem>
+    </t>
+
+</templates>

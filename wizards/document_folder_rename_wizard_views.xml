@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_document_folder_rename_wizard_form" model="ir.ui.view">
+        <field name="name">document.folder.rename.wizard.form</field>
+        <field name="model">document.folder.rename.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Renombrar carpeta">
+                <group>
+                    <field name="name" placeholder="Nombre de la carpeta"/>
+                    <field name="folder_id" invisible="1"/>
+                </group>
+                <footer>
+                    <button string="Renombrar" type="object" name="action_rename_folder" class="btn-primary"/>
+                    <button string="Cancelar" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Sin binding_model_id/binding_view_types: el KanbanView nativo de Odoo 17 monta su
+         CogMenu sin pasarle props.items (ver web/static/src/views/kanban/kanban_controller.xml),
+         así que los bindings de ir.actions.act_window nunca llegan a ese menú en kanban (a
+         diferencia de ListView). La entrada "Renombrar" se registra en su lugar como item del
+         cogMenu registry (document_folder_rename_menu.js), que invoca esta acción por xmlid. -->
+    <record id="action_document_folder_rename_wizard" model="ir.actions.act_window">
+        <field name="name">Renombrar carpeta</field>
+        <field name="res_model">document.folder.rename.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

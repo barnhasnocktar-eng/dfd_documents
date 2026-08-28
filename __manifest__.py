@@ -2,7 +2,7 @@
 # Todos los derechos reservados. Está prohibido la distribución o modificación de este código sin permiso
 {
     "name": "Difadi - Gestor de Documentos",
-    "version": "17.0.1.5.1",
+    "version": "17.0.1.6.0",
     "license": "LGPL-3",
     "author": "Difadi.com",
     "website": "https://difadi.com",
@@ -17,6 +17,7 @@
         "views/document_file_views.xml",
         # Wizards
         "wizards/document_folder_create_wizard_views.xml",
+        "wizards/document_folder_rename_wizard_views.xml",
         # Vistas que dependen de acciones definidas anteriormente
         "data/ui_menus.xml",
         # Datos por defecto
@@ -31,6 +32,8 @@
             "dfd_documents/static/src/js/document_folder_tree_sidebar.xml",
             "dfd_documents/static/src/js/document_folder_breadcrumb.js",
             "dfd_documents/static/src/js/document_folder_breadcrumb.xml",
+            "dfd_documents/static/src/js/document_folder_rename_menu.js",
+            "dfd_documents/static/src/js/document_folder_rename_menu.xml",
         ],
     },
     "installable": True,
