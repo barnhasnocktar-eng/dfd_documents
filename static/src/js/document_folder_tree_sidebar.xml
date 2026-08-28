@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="dfd_documents.DocumentFolderTreeSidebar">
+        <div class="o_dfd_folder_tree_sidebar">
+            <div class="o_dfd_folder_tree_root"
+                 t-att-class="{ o_dfd_folder_drag_over: state.dragOverFolderId === false }"
+                 t-on-dragover="(ev) => this.onNodeDragOver(ev, false)"
+                 t-on-dragleave="() => this.onNodeDragLeave()"
+                 t-on-drop="(ev) => this.onNodeDrop(ev, false)"
+                 t-on-click="() => this.goTo(false)">
+                <img src="/dfd_documents/static/src/img/folder.png" class="o_dfd_folder_tree_icon" alt="Carpeta"/>Documentos
+            </div>
+            <ul class="o_dfd_folder_tree_list">
+                <t t-foreach="state.rootIds" t-as="folderId" t-key="folderId">
+                    <t t-call="dfd_documents.DocumentFolderTreeNode">
+                        <t t-set="folderId" t-value="folderId"/>
+                    </t>
+                </t>
+            </ul>
+        </div>
+    </t>
+
+    <t t-name="dfd_documents.DocumentFolderTreeNode">
+        <t t-set="node" t-value="state.nodesById[folderId]"/>
+        <li class="o_dfd_folder_tree_node">
+            <div class="o_dfd_folder_tree_label"
+                 t-att-class="{
+                    o_dfd_folder_drag_over: state.dragOverFolderId === folderId,
+                    o_dfd_folder_tree_active: activeFolderId === folderId,
+                 }"
+                 t-on-dragover="(ev) => this.onNodeDragOver(ev, folderId)"
+                 t-on-dragleave="() => this.onNodeDragLeave()"
+                 t-on-drop="(ev) => this.onNodeDrop(ev, folderId)"
+                 t-on-dragstart="(ev) => this.onNodeDragStart(ev, folderId)"
+                 t-on-dragend="() => this.onNodeDragEnd()"
+                 t-att-draggable="true"
+                 t-on-click="() => this.goTo(folderId)">
+                <i t-if="node.childIds.length"
+                   t-att-class="isExpanded(folderId) ? 'fa fa-caret-down' : 'fa fa-caret-right'"
+                   class="o_dfd_folder_tree_toggle"
+                   t-on-click="(ev) => this.toggleExpanded(ev, folderId)"/>
+                <i t-else="" class="o_dfd_folder_tree_toggle o_dfd_folder_tree_toggle_placeholder"/>
+                <img src="/dfd_documents/static/src/img/folder.png" class="o_dfd_folder_tree_icon" alt="Carpeta"/>
+                <t t-esc="node.name"/>
+            </div>
+            <ul class="o_dfd_folder_tree_list" t-if="node.childIds.length and isExpanded(folderId)">
+                <t t-foreach="node.childIds" t-as="childId" t-key="childId">
+                    <t t-call="dfd_documents.DocumentFolderTreeNode">
+                        <t t-set="folderId" t-value="childId"/>
+                    </t>
+                </t>
+            </ul>
+        </li>
+    </t>
+
+</templates>

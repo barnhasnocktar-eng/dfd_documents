@@ -66,6 +66,112 @@
     }
 }
 
+// .o_content (de web.Layout) pasa a ser grid de 2 columnas cuando contiene el árbol lateral:
+// columna 1 = sidebar (ocupa todas las filas), columna 2 = breadcrumb + kanban renderer, uno
+// debajo del otro tal cual ya vienen en el DOM (son hermanos directos, no hace falta envolverlos).
+.o_content:has(> .o_dfd_folder_tree_sidebar) {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    height: 100%;
+    min-height: 0;
+
+    > .o_dfd_folder_tree_sidebar {
+        grid-column: 1;
+        grid-row: 1 / -1;
+        min-height: 0;
+        overflow-y: auto;
+        border-right: 1px solid var(--border-color, #dee2e6);
+    }
+
+    > .dfd_document_breadcrumb {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    > .o_kanban_renderer {
+        grid-column: 2;
+        grid-row: 2;
+        min-height: 0;
+        overflow-y: auto;
+    }
+}
+
+.o_dfd_folder_tree_sidebar {
+    padding: 8px 4px;
+    font-size: 0.9em;
+
+    .o_dfd_folder_tree_root {
+        display: flex;
+        align-items: center;
+        padding: 4px 8px;
+        cursor: pointer;
+        border-radius: 4px;
+        font-weight: 600;
+        margin-bottom: 2px;
+
+        &:hover {
+            background-color: var(--o-view-background-color-hover, rgba(0, 0, 0, 0.04));
+        }
+    }
+
+    .o_dfd_folder_tree_list {
+        list-style: none;
+        margin: 0;
+        padding-left: 16px;
+    }
+
+    > .o_dfd_folder_tree_list {
+        padding-left: 0;
+    }
+
+    .o_dfd_folder_tree_label {
+        display: flex;
+        align-items: center;
+        padding: 4px 8px;
+        cursor: pointer;
+        border-radius: 4px;
+        white-space: nowrap;
+
+        &:hover {
+            background-color: var(--o-view-background-color-hover, rgba(0, 0, 0, 0.04));
+        }
+    }
+
+    .o_dfd_folder_tree_active {
+        background-color: rgba(113, 75, 103, 0.12);
+        font-weight: 600;
+    }
+
+    .o_dfd_folder_tree_toggle {
+        width: 16px;
+        flex-shrink: 0;
+        text-align: center;
+        margin-right: 2px;
+        color: var(--text-muted, #6c757d);
+    }
+
+    .o_dfd_folder_tree_toggle_placeholder {
+        visibility: hidden;
+    }
+
+    .o_dfd_folder_tree_icon {
+        width: 18px;
+        height: 18px;
+        margin-right: 6px;
+        flex-shrink: 0;
+    }
+
+    // Resalta el nodo bajo el cursor mientras se arrastra una carpeta o documento sobre él,
+    // igual criterio visual que las tarjetas del kanban y los segmentos del breadcrumb.
+    .o_dfd_folder_tree_root.o_dfd_folder_drag_over,
+    .o_dfd_folder_tree_label.o_dfd_folder_drag_over {
+        outline: 2px dashed var(--o-brand-primary, #714b67);
+        outline-offset: -2px;
+        background-color: rgba(113, 75, 103, 0.1);
+    }
+}
+
 .dfd_document_breadcrumb {
     background: transparent;
     padding: 8px 16px;

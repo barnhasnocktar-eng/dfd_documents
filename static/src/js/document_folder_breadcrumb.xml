@@ -2,7 +2,12 @@
 <templates xml:space="preserve">
 
     <t t-name="dfd_documents.DocumentFolderKanbanView" t-inherit="web.KanbanView" t-inherit-mode="primary">
+        <!-- .o_content (de web.Layout) es el padre directo real de este slot: se convierte en
+             contenedor flex de 2 columnas por CSS (ver o_dfd_folder_kanban_layout en el scss).
+             DocumentFolderTreeSidebar y DocumentFolderBreadcrumb quedan como hermanos directos
+             del Renderer dentro de ese mismo .o_content, sin reestructurar el DOM nativo. -->
         <xpath expr="//t[@t-component='props.Renderer']" position="before">
+            <DocumentFolderTreeSidebar activeFolderId="props.context.active_folder_id"/>
             <DocumentFolderBreadcrumb activeFolderId="props.context.active_folder_id"/>
         </xpath>
     </t>

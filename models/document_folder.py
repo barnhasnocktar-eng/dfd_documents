@@ -82,6 +82,18 @@ class DocumentFolder(models.Model):
         folder.write({"parent_id": target.id})
 
     @api.model
+    def get_folder_tree(self):
+        """Devuelve todas las carpetas (id, name, parent_id) para pintar el árbol lateral completo.
+
+        Una sola llamada en vez de expandir bajo demanda: el volumen esperado de carpetas
+        es pequeño y así el JS arma el árbol entero en cliente sin ida y vuelta por nodo.
+        """
+        folders = self.search_read([], ["name", "parent_id"])
+        for folder in folders:
+            folder["parent_id"] = folder["parent_id"][0] if folder["parent_id"] else False
+        return folders
+
+    @api.model
     def create_from_upload_tree(self, tree, folder_id):
         """Recrea recursivamente en `folder_id` un árbol de carpetas/archivos subido por drag&drop.
 

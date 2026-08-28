@@ -5,28 +5,13 @@ import { useService } from "@web/core/utils/hooks";
 import { kanbanView } from "@web/views/kanban/kanban_view";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
-import { Component, onWillStart, useState, onMounted, onPatched, onWillUnmount, reactive } from "@odoo/owl";
+import { Component, onWillStart, useState, onMounted, onPatched, onWillUnmount } from "@odoo/owl";
 import { formatDate, deserializeDateTime } from "@web/core/l10n/dates";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
-
-// Estado compartido entre DocumentFolderKanbanRenderer (donde arranca el drag de una carpeta o
-// documento) y DocumentFolderBreadcrumb (donde se puede soltar para mover a un ancestro): son
-// componentes hermanos sin relación padre-hijo, así que se comunican por este singleton reactivo
-// en vez de por props. Solo vive el tiempo del drag en curso.
-const dragState = reactive({ item: null });
-
-// Llama al método ORM que mueve `item` (carpeta o documento) a `targetFolderId`. Función libre
-// (no método de componente) porque la usan tanto DocumentFolderKanbanRenderer como
-// DocumentFolderBreadcrumb, cada uno con su propio refresco tras el move.
-async function callMoveItem(orm, item, targetFolderId) {
-    const { type, id } = item;
-    if (type === "folder") {
-        await orm.call("document.folder", "move_folder", [id, targetFolderId]);
-    } else {
-        await orm.call("document.file", "move_file", [id, targetFolderId]);
-    }
-}
+import { dragState, callMoveItem } from "@dfd_documents/js/document_folder_drag_state";
+import { notifyFolderTreeChanged } from "@dfd_documents/js/document_folder_bus";
+import { DocumentFolderTreeSidebar } from "@dfd_documents/js/document_folder_tree_sidebar";
 
 // Determina el icono a mostrar en la tarjeta de documento según su mimetype.
 const FILE_ICON_BY_MIMETYPE = {
@@ -155,6 +140,9 @@ export class DocumentFolderBreadcrumb extends Component {
                 { type: "danger" }
             );
             return;
+        }
+        if (item.type === "folder") {
+            notifyFolderTreeChanged();
         }
         // Recarga la carpeta activa: el elemento movido ha salido de ella, y esta misma llamada
         // refresca tanto el breadcrumb como el kanban (comparten la misma acción).
@@ -289,6 +277,9 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
                 item.type === "folder" ? _t("No se pudo mover la carpeta.") : _t("No se pudo mover el documento."),
                 { type: "danger" }
             );
+        }
+        if (item.type === "folder") {
+            notifyFolderTreeChanged();
         }
         await this.loadFiles();
         await this.props.list.model.load();
@@ -489,6 +480,7 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
             confirmLabel: _t("Eliminar"),
             confirm: async () => {
                 await this.orm.unlink("document.folder", [folderId]);
+                notifyFolderTreeChanged();
                 await this.props.list.model.load();
             },
             cancel: () => {},
@@ -512,11 +504,20 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
 }
 DocumentFolderKanbanRenderer.template = "dfd_documents.DocumentFolderKanbanRenderer";
 
-class DocumentFolderKanbanController extends KanbanController {}
+class DocumentFolderKanbanController extends KanbanController {
+    // El wizard de creación de carpeta (on_create) se abre y cierra por encima de esta vista;
+    // KanbanController.createRecord ya recarga el kanban al cerrarlo, pero el árbol lateral es
+    // un componente hermano que no se entera de esa recarga, así que hay que avisarle aparte.
+    async createRecord() {
+        await super.createRecord();
+        notifyFolderTreeChanged();
+    }
+}
 DocumentFolderKanbanController.template = "dfd_documents.DocumentFolderKanbanView";
 DocumentFolderKanbanController.components = {
     ...KanbanController.components,
     DocumentFolderBreadcrumb,
+    DocumentFolderTreeSidebar,
 };
 
 registry.category("views").add("document_folder_kanban", {

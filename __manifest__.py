@@ -23,6 +23,10 @@
     "assets": {
         "web.assets_backend": [
             "dfd_documents/static/src/scss/document_folder_kanban.scss",
+            "dfd_documents/static/src/js/document_folder_drag_state.js",
+            "dfd_documents/static/src/js/document_folder_bus.js",
+            "dfd_documents/static/src/js/document_folder_tree_sidebar.js",
+            "dfd_documents/static/src/js/document_folder_tree_sidebar.xml",
             "dfd_documents/static/src/js/document_folder_breadcrumb.js",
             "dfd_documents/static/src/js/document_folder_breadcrumb.xml",
         ],
