@@ -38,9 +38,15 @@ class HrEmployee(models.Model):
         for employee in self:
             employee_folder = employee.x_document_folder_id
             if not employee_folder:
+                # allowed_employee_ids: el propio empleado queda con acceso automático a su
+                # carpeta desde el momento en que se crea, sin tener que pasar luego por el
+                # wizard de Permisos a mano. Si el empleado aún no tiene user_id asignado esto
+                # no da acceso a nadie todavía (ver document_folder.py), pero queda ya marcado
+                # para cuando se le asigne uno.
                 employee_folder = DocumentFolder.create({
                     "name": employee.name,
                     "parent_id": root_folder.id,
+                    "allowed_employee_ids": [(6, 0, employee.ids)],
                 })
                 employee.x_document_folder_id = employee_folder.id
 

@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
+    <!-- Sin t-if de visibilidad aquí: la comprobación de permiso (can_manage_folder / isAdmin)
+         ya se resuelve en isDisplayed (document_folder_rename_menu.js) ANTES de que CogMenu
+         decida montar este componente. Si se repitiera aquí con un t-if, el componente seguiría
+         contando como "item presente" para CogMenu (ver hasItems en cog_menu.js) y el botón de
+         engranaje aparecería con el desplegable vacío en vez de no aparecer directamente. -->
     <t t-name="dfd_documents.RenameFolderMenuItem">
         <DropdownItem class="'o_dfd_rename_folder_menu'" onSelected.bind="renameFolder">
             <i class="fa fa-fw fa-pencil me-1"/>Renombrar

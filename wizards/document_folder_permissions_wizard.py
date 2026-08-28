@@ -38,16 +38,26 @@ class DocumentFolderPermissionsWizard(models.TransientModel):
         "antepasada. No se pueden quitar desde aquí: hay que editarlos en la carpeta antepasada.",
     )
 
+    def _check_is_admin(self):
+        # Gestionar quién tiene acceso a una carpeta es una potestad de administración,
+        # reservada SIEMPRE a base.group_system: a diferencia de renombrar/mover/eliminar,
+        # aquí no basta con tener grupo o empleado permitido en la carpeta padre. Se
+        # comprueba tanto en default_get (para que el wizard ni abra) como en
+        # action_save_permissions (por si se invoca el guardado sin pasar por el wizard
+        # ya abierto, p. ej. reescribiendo el wizard existente por RPC).
+        if not self.env.user.has_group("base.group_system"):
+            raise UserError("Solo un administrador puede gestionar los permisos de una carpeta.")
+
     @api.model
     def default_get(self, fields_list):
         # Misma lógica que el wizard de renombrar: la raíz de Documentos no es un
         # document.folder real, así que no tiene permisos propios que gestionar aquí.
         res = super().default_get(fields_list)
+        self._check_is_admin()
         active_folder_id = self.env.context.get("active_folder_id")
         if not active_folder_id:
             raise UserError("La carpeta raíz de Documentos no tiene permisos que gestionar.")
         folder = self.env["document.folder"].browse(active_folder_id)
-        folder._check_can_manage_self()
         if "folder_id" in fields_list:
             res["folder_id"] = folder.id
         if "allowed_group_ids" in fields_list:
@@ -64,6 +74,7 @@ class DocumentFolderPermissionsWizard(models.TransientModel):
 
     def action_save_permissions(self):
         self.ensure_one()
+        self._check_is_admin()
         self.folder_id.write({
             "allowed_group_ids": [(6, 0, self.allowed_group_ids.ids)],
             "allowed_employee_ids": [(6, 0, self.allowed_employee_ids.ids)],

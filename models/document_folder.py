@@ -119,31 +119,47 @@ class DocumentFolder(models.Model):
         return super().unlink()
 
     def _check_can_manage_self(self):
-        """El grupo permitido en una carpeta da acceso a su CONTENIDO (subcarpetas y
-        documentos), nunca a la carpeta misma: para renombrarla, moverla, bloquearla,
-        eliminarla o cambiar sus propios `allowed_group_ids` hace falta grupo permitido
-        en su carpeta PADRE (o `base.group_system`), igual que para crear algo dentro
-        de ese padre. Sin padre (carpeta de primer nivel) solo puede tocarla `base.group_system`.
+        """Versión que lanza `UserError` de `_can_manage_self()` (ver ahí la explicación
+        completa de la regla). Se usa en los puntos donde el rechazo debe cortar la
+        operación (`write`/`unlink`/`default_get` del wizard de permisos)."""
+        not_allowed = self.filtered(lambda f: not f._can_manage_self())
+        if not_allowed:
+            raise UserError(
+                "No tienes permiso para modificar esta carpeta. "
+                "El permiso sobre una carpeta da acceso a su contenido, no a la carpeta en sí."
+            )
+
+    def _can_manage_self(self):
+        """True si el usuario actual puede renombrar/mover/bloquear/eliminar `self` (una
+        sola carpeta) o cambiar sus propios `allowed_group_ids`/`allowed_employee_ids`.
+
+        El grupo o empleado permitido en una carpeta da acceso a su CONTENIDO (subcarpetas
+        y documentos), nunca a la carpeta misma: hace falta grupo o empleado permitido en
+        su carpeta PADRE (o `base.group_system`), igual que para crear algo dentro de ese
+        padre. Sin padre (carpeta de primer nivel) solo puede tocarla `base.group_system`.
+        Usado también desde el JS (vía `can_manage_folder`) para decidir si mostrar las
+        acciones "Renombrar"/"Eliminar" del cogMenu sobre la carpeta activa.
         """
+        self.ensure_one()
         if self.env.user.has_group("base.group_system"):
-            return
+            return True
         user = self.env.user
-        user_group_ids = set(user.groups_id.ids)
-        for folder in self:
-            parent = folder.parent_id
-            if parent:
-                allowed_group_ids = set(parent.effective_group_ids.ids)
-                allowed_user_ids = set(parent.effective_employee_ids.user_id.ids)
-            else:
-                allowed_group_ids = set(self._get_always_allowed_groups().ids)
-                allowed_user_ids = set()
-            has_group = bool(user_group_ids & allowed_group_ids)
-            has_employee = user.id in allowed_user_ids
-            if not (has_group or has_employee):
-                raise UserError(
-                    "No tienes permiso para modificar esta carpeta. "
-                    "El permiso sobre una carpeta da acceso a su contenido, no a la carpeta en sí."
-                )
+        parent = self.parent_id
+        if parent:
+            allowed_group_ids = set(parent.effective_group_ids.ids)
+            allowed_user_ids = set(parent.effective_employee_ids.user_id.ids)
+        else:
+            allowed_group_ids = set(self._get_always_allowed_groups().ids)
+            allowed_user_ids = set()
+        has_group = bool(set(user.groups_id.ids) & allowed_group_ids)
+        has_employee = user.id in allowed_user_ids
+        return has_group or has_employee
+
+    @api.model
+    def can_manage_folder(self, folder_id):
+        """Envoltorio RPC de `_can_manage_self()` para un folder_id concreto, usado por el
+        cogMenu (JS) para decidir si mostrar "Renombrar"/"Eliminar" sobre la carpeta activa."""
+        return self.browse(folder_id)._can_manage_self()
 
     @api.depends("child_ids")
     def _compute_child_count(self):
