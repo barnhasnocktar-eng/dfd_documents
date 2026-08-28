@@ -2,13 +2,13 @@
 # Todos los derechos reservados. Está prohibido la distribución o modificación de este código sin permiso
 {
     "name": "Difadi - Gestor de Documentos",
-    "version": "17.0.1.8.0",
+    "version": "17.0.1.10.0",
     "license": "LGPL-3",
     "author": "Difadi.com",
     "website": "https://difadi.com",
     "summary": "Gestor de carpetas y documentos con navegación en árbol",
     "category": "Customizations",
-    "depends": ["base", "base_import", "mail", "spiffy_theme_backend"],
+    "depends": ["base", "base_import", "mail", "hr", "spiffy_theme_backend"],
     "data": [
         # Security
         "security/ir.model.access.csv",
@@ -16,6 +16,7 @@
         "views/document_folder_views.xml",
         "views/document_file_views.xml",
         "views/employee_default_folder_views.xml",
+        "views/hr_employee_views.xml",
         # Wizards
         "wizards/document_folder_create_wizard_views.xml",
         "wizards/document_folder_rename_wizard_views.xml",

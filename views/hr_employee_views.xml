@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_employee_form_inherit_documents" model="ir.ui.view">
+        <field name="name">hr.employee.form.inherit.dfd.documents</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='hr_settings']" position="inside">
+                <group string="Documentos" name="x_documents_group">
+                    <field name="x_document_folder_id" invisible="not x_document_folder_id"/>
+                    <div class="o_row">
+                        <button name="x_action_create_employee_folder" type="object"
+                                string="Crear carpetas" class="btn-primary text-nowrap"
+                                invisible="x_document_folder_id"/>
+                        <button name="x_action_go_to_employee_folder" type="object"
+                                class="btn-secondary text-nowrap"
+                                invisible="not x_document_folder_id">
+                            <img src="/dfd_documents/static/src/img/folder.png" class="o_dfd_folder_icon" alt="Carpeta" style="height: 16px; width: 16px; vertical-align: text-bottom; margin-right: 4px;"/>
+                            Ir a la carpeta
+                        </button>
+                    </div>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

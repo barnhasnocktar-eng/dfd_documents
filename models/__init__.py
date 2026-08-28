@@ -3,3 +3,4 @@
 from . import document_folder
 from . import document_file
 from . import employee_default_folder
+from . import hr_employee
