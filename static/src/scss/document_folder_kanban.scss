@@ -79,4 +79,13 @@
     a {
         text-decoration: none;
     }
+
+    // Resalta el segmento de ruta bajo el cursor mientras se arrastra una carpeta o documento
+    // sobre él, para soltar y mover al nivel de ese ancestro sin subir uno a uno.
+    .breadcrumb-item.o_dfd_folder_drag_over {
+        outline: 2px dashed var(--o-brand-primary, #714b67);
+        outline-offset: 2px;
+        background-color: rgba(113, 75, 103, 0.1);
+        border-radius: 4px;
+    }
 }

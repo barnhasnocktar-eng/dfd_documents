@@ -9,13 +9,21 @@
 
     <t t-name="dfd_documents.DocumentFolderBreadcrumb">
         <ol class="dfd_document_breadcrumb breadcrumb mb-0">
-            <li class="breadcrumb-item">
+            <li class="breadcrumb-item"
+                t-att-class="{ o_dfd_folder_drag_over: state.dragOverFolderId === false }"
+                t-on-dragover="(ev) => this.onFolderDragOver(ev, false)"
+                t-on-dragleave="() => this.onFolderDragLeave()"
+                t-on-drop="(ev) => this.onFolderDrop(ev, false)">
                 <a href="#" t-on-click.prevent="() => this.goTo(false)">
                     <i class="fa fa-folder-o me-1"/>Documentos
                 </a>
             </li>
             <t t-foreach="state.path" t-as="folder" t-key="folder.id">
-                <li class="breadcrumb-item">
+                <li class="breadcrumb-item"
+                    t-att-class="{ o_dfd_folder_drag_over: state.dragOverFolderId === folder.id }"
+                    t-on-dragover="(ev) => this.onFolderDragOver(ev, folder.id)"
+                    t-on-dragleave="() => this.onFolderDragLeave()"
+                    t-on-drop="(ev) => this.onFolderDrop(ev, folder.id)">
                     <a href="#" t-on-click.prevent="() => this.goTo(folder.id)">
                         <t t-esc="folder.name"/>
                     </a>

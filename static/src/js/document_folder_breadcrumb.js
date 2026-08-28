@@ -5,10 +5,28 @@ import { useService } from "@web/core/utils/hooks";
 import { kanbanView } from "@web/views/kanban/kanban_view";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
-import { Component, onWillStart, useState, onMounted, onPatched, onWillUnmount } from "@odoo/owl";
+import { Component, onWillStart, useState, onMounted, onPatched, onWillUnmount, reactive } from "@odoo/owl";
 import { formatDate, deserializeDateTime } from "@web/core/l10n/dates";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
+
+// Estado compartido entre DocumentFolderKanbanRenderer (donde arranca el drag de una carpeta o
+// documento) y DocumentFolderBreadcrumb (donde se puede soltar para mover a un ancestro): son
+// componentes hermanos sin relación padre-hijo, así que se comunican por este singleton reactivo
+// en vez de por props. Solo vive el tiempo del drag en curso.
+const dragState = reactive({ item: null });
+
+// Llama al método ORM que mueve `item` (carpeta o documento) a `targetFolderId`. Función libre
+// (no método de componente) porque la usan tanto DocumentFolderKanbanRenderer como
+// DocumentFolderBreadcrumb, cada uno con su propio refresco tras el move.
+async function callMoveItem(orm, item, targetFolderId) {
+    const { type, id } = item;
+    if (type === "folder") {
+        await orm.call("document.folder", "move_folder", [id, targetFolderId]);
+    } else {
+        await orm.call("document.file", "move_file", [id, targetFolderId]);
+    }
+}
 
 // Determina el icono a mostrar en la tarjeta de documento según su mimetype.
 const FILE_ICON_BY_MIMETYPE = {
@@ -50,7 +68,8 @@ export class DocumentFolderBreadcrumb extends Component {
     setup() {
         this.orm = useService("orm");
         this.action = useService("action");
-        this.state = useState({ path: [] });
+        this.notification = useService("notification");
+        this.state = useState({ path: [], dragOverFolderId: undefined });
 
         onWillStart(async () => {
             await this.loadPath();
@@ -100,6 +119,47 @@ export class DocumentFolderBreadcrumb extends Component {
         const action = await this.orm.call("document.folder", "action_go_to_folder", [folderId]);
         await this.action.doAction(action, { clearBreadcrumbs: true });
     }
+
+    // Zona de drop de cada segmento del breadcrumb: permite sacar una carpeta o documento hacia
+    // cualquier carpeta ancestro (o a la raíz) de un solo arrastre, sin tener que subir nivel a
+    // nivel. `folderId` es false para el segmento raíz ("Documentos").
+    onFolderDragOver(ev, folderId) {
+        if (!dragState.item) {
+            return;
+        }
+        ev.preventDefault();
+        const isSameFolder = dragState.item.type === "folder" && dragState.item.id === folderId;
+        const isActiveFolder = folderId === (this.props.activeFolderId || false);
+        this.state.dragOverFolderId = isSameFolder || isActiveFolder ? undefined : folderId;
+    }
+
+    onFolderDragLeave() {
+        this.state.dragOverFolderId = undefined;
+    }
+
+    async onFolderDrop(ev, folderId) {
+        if (!dragState.item || this.state.dragOverFolderId === undefined) {
+            dragState.item = null;
+            this.state.dragOverFolderId = undefined;
+            return;
+        }
+        ev.preventDefault();
+        const item = dragState.item;
+        dragState.item = null;
+        this.state.dragOverFolderId = undefined;
+        try {
+            await callMoveItem(this.orm, item, folderId);
+        } catch (error) {
+            this.notification.add(
+                item.type === "folder" ? _t("No se pudo mover la carpeta.") : _t("No se pudo mover el documento."),
+                { type: "danger" }
+            );
+            return;
+        }
+        // Recarga la carpeta activa: el elemento movido ha salido de ella, y esta misma llamada
+        // refresca tanto el breadcrumb como el kanban (comparten la misma acción).
+        await this.goTo(this.props.activeFolderId || false);
+    }
 }
 DocumentFolderBreadcrumb.template = "dfd_documents.DocumentFolderBreadcrumb";
 DocumentFolderBreadcrumb.props = { activeFolderId: { type: [Number, Boolean], optional: true } };
@@ -116,10 +176,9 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
         this.fileState = useState({ files: [], dragging: false });
         // this.rootRef ya lo define KanbanRenderer (useRef("root")) — se reutiliza tal cual.
 
-        // Elemento que se está arrastrando dentro del propio kanban (carpeta o documento) y
-        // tarjeta carpeta sobre la que está el cursor, solo para resaltarla con CSS mientras
-        // dura el drag. { type: "folder"|"file", id } o null si no hay drag interno en curso.
-        this.draggedItem = null;
+        // Tarjeta carpeta sobre la que está el cursor, solo para resaltarla con CSS mientras
+        // dura el drag. El elemento arrastrado en sí (carpeta o documento) vive en dragState,
+        // compartido con DocumentFolderBreadcrumb para poder soltar sobre la ruta superior.
         this.dragOverEl = null;
 
         onWillStart(async () => {
@@ -201,13 +260,13 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
     onFolderDragStart(ev) {
         const folderCard = this.getFolderCard(ev.target);
         if (folderCard) {
-            this.draggedItem = { type: "folder", id: Number(folderCard.dataset.folderResId) };
+            dragState.item = { type: "folder", id: Number(folderCard.dataset.folderResId) };
         } else {
             const fileCard = this.getFileCard(ev.target);
             if (!fileCard) {
                 return;
             }
-            this.draggedItem = { type: "file", id: Number(fileCard.dataset.docFileId) };
+            dragState.item = { type: "file", id: Number(fileCard.dataset.docFileId) };
         }
         ev.dataTransfer.effectAllowed = "move";
         // Tipo propio para distinguir en onDrop un drag interno (carpeta o documento) de un
@@ -216,8 +275,23 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
     }
 
     onFolderDragEnd() {
-        this.draggedItem = null;
+        dragState.item = null;
         this.clearDragOver();
+    }
+
+    // Mueve `item` (carpeta o documento) a `targetFolderId`, usado al soltar sobre una tarjeta
+    // carpeta del grid, y refresca esta vista (el elemento movido puede haber salido de ella).
+    async moveItemToFolder(item, targetFolderId) {
+        try {
+            await callMoveItem(this.orm, item, targetFolderId);
+        } catch (error) {
+            this.notification.add(
+                item.type === "folder" ? _t("No se pudo mover la carpeta.") : _t("No se pudo mover el documento."),
+                { type: "danger" }
+            );
+        }
+        await this.loadFiles();
+        await this.props.list.model.load();
     }
 
     clearDragOver() {
@@ -261,14 +335,14 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
         // Drag interno (carpeta o documento): no activa el overlay de "subir archivo", solo
         // resalta la tarjeta carpeta bajo el cursor (si hay una) como posible destino. Un
         // documento siempre puede soltarse sobre cualquier carpeta; una carpeta no sobre sí misma.
-        if (this.draggedItem) {
+        if (dragState.item) {
             const card = this.getFolderCard(ev.target);
             if (card !== this.dragOverEl) {
                 this.clearDragOver();
                 const isSameFolder =
-                    this.draggedItem.type === "folder" &&
+                    dragState.item.type === "folder" &&
                     card &&
-                    Number(card.dataset.folderResId) === this.draggedItem.id;
+                    Number(card.dataset.folderResId) === dragState.item.id;
                 if (card && !isSameFolder) {
                     card.classList.add("o_dfd_folder_drag_over");
                     this.dragOverEl = card;
@@ -281,7 +355,7 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
 
     onDragLeave(ev) {
         ev.preventDefault();
-        if (this.draggedItem) {
+        if (dragState.item) {
             return;
         }
         this.fileState.dragging = false;
@@ -293,11 +367,11 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
 
         // Drag interno (carpeta o documento): mueve el elemento arrastrado dentro de la carpeta
         // soltada (o a la raíz si se suelta fuera de cualquier tarjeta) en vez de subir archivos.
-        if (this.draggedItem) {
-            const { type, id } = this.draggedItem;
+        if (dragState.item) {
+            const { type, id } = dragState.item;
             const targetCard = this.getFolderCard(ev.target);
             this.clearDragOver();
-            this.draggedItem = null;
+            dragState.item = null;
             const targetFolderId = targetCard ? Number(targetCard.dataset.folderResId) : this.activeFolderId;
             if (type === "folder" && targetFolderId === id) {
                 return;
@@ -307,20 +381,7 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
                 // "mover a la carpeta activa" porque el documento ya vive en la carpeta activa.
                 return;
             }
-            try {
-                if (type === "folder") {
-                    await this.orm.call("document.folder", "move_folder", [id, targetFolderId]);
-                } else {
-                    await this.orm.call("document.file", "move_file", [id, targetFolderId]);
-                }
-            } catch (error) {
-                this.notification.add(
-                    type === "folder" ? _t("No se pudo mover la carpeta.") : _t("No se pudo mover el documento."),
-                    { type: "danger" }
-                );
-            }
-            await this.loadFiles();
-            await this.props.list.model.load();
+            await this.moveItemToFolder({ type, id }, targetFolderId);
             return;
         }
 
