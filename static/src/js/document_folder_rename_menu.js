@@ -8,6 +8,7 @@ import { archParseBoolean } from "@web/views/utils";
 import { Component } from "@odoo/owl";
 import { STATIC_ACTIONS_GROUP_NUMBER } from "@web/search/action_menus/action_menus";
 import { _t } from "@web/core/l10n/translation";
+import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { importRecordsItem } from "@base_import/import_records/import_records";
 import { notifyFolderTreeChanged } from "@dfd_documents/js/document_folder_bus";
 
@@ -68,3 +69,51 @@ export const renameFolderMenuItem = {
 };
 
 cogMenuRegistry.add("dfd-rename-folder-menu", renameFolderMenuItem, { sequence: 2 });
+
+// Mismo mecanismo que RenameFolderMenuItem (cogMenu item propio, ver comentario más arriba),
+// para ofrecer "Eliminar" también fuera de la raíz, con la misma confirmación y borrado que ya
+// usa el icono de papelera del kanban (deleteRecord en document_folder_breadcrumb.js), ya que
+// este menú no tiene acceso a ese controller.
+export class DeleteFolderMenuItem extends Component {
+    static template = "dfd_documents.DeleteFolderMenuItem";
+    static components = { DropdownItem };
+
+    setup() {
+        this.orm = useService("orm");
+        this.action = useService("action");
+        this.dialog = useService("dialog");
+    }
+
+    deleteFolder() {
+        const { context } = this.env.searchModel;
+        const folderId = context.active_folder_id;
+        this.dialog.add(ConfirmationDialog, {
+            title: _t("Eliminar carpeta"),
+            body: _t("¿Seguro que quieres eliminar esta carpeta y todo su contenido?"),
+            confirmLabel: _t("Eliminar"),
+            confirm: async () => {
+                const [folder] = await this.orm.read("document.folder", [folderId], ["parent_id"]);
+                const parentId = folder.parent_id ? folder.parent_id[0] : false;
+                await this.orm.unlink("document.folder", [folderId]);
+                notifyFolderTreeChanged();
+                const nextAction = await this.orm.call("document.folder", "action_go_to_folder", [parentId]);
+                await this.action.doAction(nextAction, { clearBreadcrumbs: true });
+            },
+            cancel: () => {},
+        });
+    }
+}
+
+export const deleteFolderMenuItem = {
+    Component: DeleteFolderMenuItem,
+    groupNumber: STATIC_ACTIONS_GROUP_NUMBER,
+    isDisplayed: ({ config, isSmall, searchModel }) =>
+        !isSmall &&
+        config.actionType === "ir.actions.act_window" &&
+        config.viewType === "kanban" &&
+        searchModel &&
+        searchModel.resModel === "document.folder" &&
+        Boolean(searchModel.context.active_folder_id),
+};
+
+cogMenuRegistry.add("dfd-delete-folder-menu", deleteFolderMenuItem, { sequence: 3 });
