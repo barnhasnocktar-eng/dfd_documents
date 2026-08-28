@@ -72,6 +72,14 @@ class DocumentFolder(models.Model):
         recursive=True,
         help="Unión de los empleados permitidos de esta carpeta y de todas sus antepasadas.",
     )
+    is_ancestor_of_accessible = fields.Boolean(
+        string="Es antepasada de una carpeta accesible",
+        compute="_compute_is_ancestor_of_accessible",
+        search="_search_is_ancestor_of_accessible",
+        help="Técnico: True si el usuario actual no tiene acceso real a esta carpeta pero sí "
+        "a alguna de sus descendientes, para poder mostrarla en modo solo lectura como parte "
+        "del camino de navegación (ver `ir.rule` de lectura en data/access_permissions.xml).",
+    )
 
     def write(self, vals):
         # Corta aquí (y no solo en move_folder/rename wizard/wizard de permisos) para cubrir
@@ -182,6 +190,62 @@ class DocumentFolder(models.Model):
         if user_group_ids & set(self.effective_group_ids.ids):
             return True
         return self.env.user.id in self.effective_employee_ids.user_id.ids
+
+    def _compute_is_ancestor_of_accessible(self):
+        """Ver ayuda del campo `is_ancestor_of_accessible`. No depends() a propósito: es
+        `search`-only en la práctica (siempre se filtra antes de listar), pero Odoo exige
+        que todo campo compute también sepa calcularse por si se lee directamente."""
+        is_admin = self.env.user.has_group("base.group_system")
+        for folder in self:
+            folder.is_ancestor_of_accessible = (
+                not is_admin
+                and not folder._is_accessible_by_current_user()
+                and folder._has_accessible_descendant()
+            )
+
+    def _has_accessible_descendant(self):
+        """True si alguna carpeta descendiente de `self` (sin incluirla) es accesible
+        (grupo o empleado efectivo) para el usuario actual. `sudo()` porque este chequeo
+        debe poder atravesar carpetas que la `ir.rule` normal ocultaría a este mismo
+        usuario (son precisamente las hermanas por las que no debe pasar la respuesta,
+        pero sí necesita poder MIRARLAS para saber que no dan acceso)."""
+        self.ensure_one()
+        user = self.env.user
+        descendant_domain = [
+            ("id", "child_of", self.id),
+            ("id", "!=", self.id),
+            "|",
+            ("effective_group_ids", "in", user.groups_id.ids),
+            ("effective_employee_ids.user_id", "=", user.id),
+        ]
+        return bool(self.env["document.folder"].sudo().search_count(descendant_domain))
+
+    @api.model
+    def _search_is_ancestor_of_accessible(self, operator, value):
+        """Traduce `is_ancestor_of_accessible = True/False` a un domain evaluable en SQL:
+        "soy antepasada de una carpeta accesible" equivale a "alguna carpeta accesible tiene
+        mi id en su `parent_path`", que es exactamente `id = parent_of <accesibles>` invertido
+        a través de `child_ids` recursivo. Se resuelve en Python por simplicidad (volumen de
+        carpetas esperado bajo, ver `get_folder_tree`) y se devuelve como `id in (...)`.
+        """
+        want_true = (operator == "=" and value) or (operator == "!=" and not value)
+        user = self.env.user
+        if user.has_group("base.group_system"):
+            ancestor_ids = []
+        else:
+            accessible_ids = self.sudo().search([
+                "|",
+                ("effective_group_ids", "in", user.groups_id.ids),
+                ("effective_employee_ids.user_id", "=", user.id),
+            ]).ids
+            ancestor_ids = set()
+            for folder in self.sudo().browse(accessible_ids):
+                if folder.parent_path:
+                    ancestor_ids.update(int(i) for i in folder.parent_path.split("/") if i)
+            ancestor_ids -= set(accessible_ids)
+            ancestor_ids = list(ancestor_ids)
+
+        return [("id", "in", ancestor_ids)] if want_true else [("id", "not in", ancestor_ids)]
 
     def get_path(self):
         """Devuelve el camino de carpetas desde la raíz hasta esta carpeta (incluida), para el breadcrumb."""

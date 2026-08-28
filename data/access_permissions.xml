@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="0">
-    <!-- Oculta carpeta y contenido a quien no pertenezca a ninguno de sus grupos efectivos
-         NI sea el usuario relacionado de alguno de sus empleados efectivos (propios o
-         heredados de antepasados, más grupos de sistema, ver document_folder.py).
+    <!-- Deja ver una carpeta si el usuario tiene acceso real a ella (grupo/empleado efectivo,
+         propio o heredado de antepasados, más grupos de sistema) O si es antepasada de alguna
+         carpeta a la que sí tiene acceso real (is_ancestor_of_accessible, ver document_folder.py):
+         así puede navegar el camino desde la raíz hasta su carpeta sin ver otras hermanas por
+         el camino, aunque no pueda editar ni entrar de verdad en esas antepasadas.
          global="1": se combina con AND respecto a otras reglas, no con OR entre grupos de usuario,
          porque la restricción debe aplicar a todo el mundo por igual, no solo a un grupo concreto. -->
     <record id="rule_document_folder_group_access" model="ir.rule">
-        <field name="name">document.folder: solo grupos/empleados permitidos (propios o heredados)</field>
+        <field name="name">document.folder: acceso real o antepasada de una carpeta accesible</field>
         <field name="model_id" ref="model_document_folder"/>
-        <field name="domain_force">['|', ('effective_group_ids', 'in', user.groups_id.ids), ('effective_employee_ids.user_id', '=', user.id)]</field>
+        <field name="domain_force">['|', '|', ('effective_group_ids', 'in', user.groups_id.ids), ('effective_employee_ids.user_id', '=', user.id), ('is_ancestor_of_accessible', '=', True)]</field>
         <field name="global" eval="True"/>
     </record>
 
