@@ -43,6 +43,7 @@
                 <i t-else="" class="o_dfd_folder_tree_toggle o_dfd_folder_tree_toggle_placeholder"/>
                 <img src="/dfd_documents/static/src/img/folder.png" class="o_dfd_folder_tree_icon" alt="Carpeta"/>
                 <t t-esc="node.name"/>
+                <i t-if="node.is_locked" class="fa fa-lock o_dfd_folder_locked_icon text-danger ms-1" title="Carpeta bloqueada"/>
             </div>
             <ul class="o_dfd_folder_tree_list" t-if="node.childIds.length and isExpanded(folderId)">
                 <t t-foreach="node.childIds" t-as="childId" t-key="childId">

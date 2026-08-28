@@ -115,6 +115,9 @@ export class ToggleLockFolderMenuItem extends Component {
         const folderId = this.env.searchModel.context.active_folder_id;
         await this.orm.write("document.folder", [folderId], { is_locked: !this.state.isLocked });
         this.state.isLocked = !this.state.isLocked;
+        // El árbol lateral pinta su propio candado por carpeta (get_folder_tree): sin este aviso
+        // se queda con el icono desactualizado hasta la próxima navegación que lo recargue entero.
+        notifyFolderTreeChanged();
     }
 }
 

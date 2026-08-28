@@ -10,6 +10,7 @@
                 <field name="name"/>
                 <field name="child_count"/>
                 <field name="file_count"/>
+                <field name="is_locked"/>
                 <templates>
                     <t t-name="kanban-box">
                         <div class="oe_kanban_global_click o_dfd_folder_card">
@@ -17,6 +18,7 @@
                             <div class="o_dfd_folder_info">
                                 <div class="o_dfd_folder_name">
                                     <field name="name"/>
+                                    <i t-if="record.is_locked.raw_value" class="fa fa-lock o_dfd_folder_locked_icon text-danger ms-1" title="Carpeta bloqueada"/>
                                 </div>
                                 <div class="o_dfd_folder_count text-muted">
                                     <t t-esc="record.child_count.value"/> subcarpeta(s)<t t-if="record.file_count.value">, <t t-esc="record.file_count.value"/> documento(s)</t>
