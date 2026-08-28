@@ -32,8 +32,19 @@ class DocumentFolder(models.Model):
     def write(self, vals):
         # Corta aquí (y no solo en move_folder/rename wizard) para cubrir también el form nativo
         # y cualquier otra vía de escritura; permite crear contenido dentro, solo bloquea la propia carpeta.
-        if vals.keys() & {"name", "parent_id"}:
-            locked = self.filtered("is_locked")
+        # Compara contra el valor actual antes de bloquear: la carga de datos XML (noupdate="0")
+        # reescribe name/parent_id en cada actualización del módulo aunque no cambien, y eso no
+        # debe chocar contra el bloqueo (que solo tiene sentido ante un cambio real de valor).
+        changed_keys = vals.keys() & {"name", "parent_id"}
+        if changed_keys:
+            def _has_real_change(folder):
+                for key in changed_keys:
+                    current = folder[key].id if key == "parent_id" else folder[key]
+                    if current != vals[key]:
+                        return True
+                return False
+
+            locked = self.filtered(lambda folder: folder.is_locked and _has_real_change(folder))
             if locked:
                 raise UserError("No puedes editar o mover esta carpeta.")
         return super().write(vals)

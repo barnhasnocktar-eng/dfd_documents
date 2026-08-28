@@ -22,4 +22,10 @@
               name="Configuración"
               parent="menu_document_folder_root"
               sequence="30"/>
+
+    <menuitem id="menu_employee_default_folder"
+              name="Carpetas por defecto de Empleados"
+              action="action_employee_default_folder"
+              parent="menu_document_configuration"
+              sequence="10"/>
 </odoo>
