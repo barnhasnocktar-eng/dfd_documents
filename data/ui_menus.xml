@@ -28,4 +28,10 @@
               action="action_employee_default_folder"
               parent="menu_document_configuration"
               sequence="10"/>
+
+    <menuitem id="menu_employee_folder_sync_wizard"
+              name="Crear carpetas de empleados"
+              action="action_employee_folder_sync_wizard"
+              parent="menu_document_configuration"
+              sequence="20"/>
 </odoo>

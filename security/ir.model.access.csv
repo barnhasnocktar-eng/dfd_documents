@@ -4,3 +4,4 @@ access_document_folder_create_wizard_user,document.folder.create.wizard.user,mod
 access_document_folder_rename_wizard_user,document.folder.rename.wizard.user,model_document_folder_rename_wizard,base.group_user,1,1,1,1
 access_document_file_user,document.file.user,model_document_file,base.group_user,1,1,1,1
 access_employee_default_folder_user,document.employee.default.folder.user,model_document_employee_default_folder,base.group_user,1,1,1,1
+access_employee_folder_sync_wizard_user,document.employee.folder.sync.wizard.user,model_document_employee_folder_sync_wizard,base.group_user,1,1,1,1

@@ -20,6 +20,7 @@
         # Wizards
         "wizards/document_folder_create_wizard_views.xml",
         "wizards/document_folder_rename_wizard_views.xml",
+        "wizards/employee_folder_sync_wizard_views.xml",
         # Vistas que dependen de acciones definidas anteriormente
         "data/ui_menus.xml",
         # Datos por defecto

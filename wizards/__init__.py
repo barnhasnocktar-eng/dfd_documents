@@ -2,3 +2,4 @@
 # Todos los derechos reservados. Está prohibido la distribución o modificación de este código sin permiso
 from . import document_folder_create_wizard
 from . import document_folder_rename_wizard
+from . import employee_folder_sync_wizard

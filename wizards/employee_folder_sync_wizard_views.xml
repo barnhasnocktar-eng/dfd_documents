@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_employee_folder_sync_wizard_form" model="ir.ui.view">
+        <field name="name">document.employee.folder.sync.wizard.form</field>
+        <field name="model">document.employee.folder.sync.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Crear carpetas de empleados">
+                <p>
+                    Se creará la estructura definida de carpetas para todos los empleados.
+                    Si el empleado no tiene carpeta se creará la estructura de 0, y si el
+                    empleado ya tenía carpeta se comprobará que tiene todas las carpetas
+                    predefinidas y creará las que falten.
+                </p>
+                <footer>
+                    <button string="Aceptar" type="object" name="action_sync_folders" class="btn-primary"/>
+                    <button string="Cancelar" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_employee_folder_sync_wizard" model="ir.actions.act_window">
+        <field name="name">Crear carpetas de empleados</field>
+        <field name="res_model">document.employee.folder.sync.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>
