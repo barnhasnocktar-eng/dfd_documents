@@ -8,12 +8,12 @@
                 <field name="folder_id" invisible="1"/>
                 <group>
                     <field name="inherited_group_ids" widget="many2many_tags" readonly="1"
-                        string="Grupos heredados de carpetas antepasadas"/>
+                        string="Grupos permitidos heredados"/>
                     <field name="allowed_group_ids" widget="many2many_tags"
                         string="Grupos permitidos en esta carpeta"
                         placeholder="Añade grupos con acceso a esta carpeta..."/>
                     <field name="inherited_employee_ids" widget="many2many_tags" readonly="1"
-                        string="Empleados heredados de carpetas antepasadas"/>
+                        string="Empleados permitidos heredados"/>
                     <field name="allowed_employee_ids" widget="many2many_tags"
                         string="Empleados permitidos en esta carpeta"
                         placeholder="Añade empleados con acceso a esta carpeta..."/>
