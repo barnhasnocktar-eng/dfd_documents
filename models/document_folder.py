@@ -1,7 +1,7 @@
 # Copyright 2026 Vértice Operativo <soporte@verticeoperativo.com>
 # Todos los derechos reservados. Está prohibido la distribución o modificación de este código sin permiso
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 
 
 class DocumentFolder(models.Model):
@@ -23,6 +23,25 @@ class DocumentFolder(models.Model):
     parent_path = fields.Char(index=True, unaccent=False)
     child_count = fields.Integer(string="Nº de subcarpetas", compute="_compute_child_count")
     file_count = fields.Integer(string="Nº de documentos", compute="_compute_file_count")
+    is_locked = fields.Boolean(
+        string="Bloqueada",
+        default=False,
+        help="Si está marcado, la carpeta no se puede renombrar, mover ni eliminar. Sí se pueden crear carpetas o documentos dentro.",
+    )
+
+    def write(self, vals):
+        # Corta aquí (y no solo en move_folder/rename wizard) para cubrir también el form nativo
+        # y cualquier otra vía de escritura; permite crear contenido dentro, solo bloquea la propia carpeta.
+        if vals.keys() & {"name", "parent_id"}:
+            locked = self.filtered("is_locked")
+            if locked:
+                raise UserError("No puedes editar o mover esta carpeta.")
+        return super().write(vals)
+
+    def unlink(self):
+        if self.filtered("is_locked"):
+            raise UserError("No puedes editar o mover esta carpeta.")
+        return super().unlink()
 
     @api.depends("child_ids")
     def _compute_child_count(self):

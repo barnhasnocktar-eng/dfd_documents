@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<odoo>
+<odoo noupdate="0">
     <record id="document_folder_empleados" model="document.folder">
         <field name="name">Empleados</field>
         <field name="parent_id" eval="False"/>
+        <field name="is_locked" eval="True"/>
     </record>
 </odoo>
