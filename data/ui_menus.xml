@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- App raíz: sin acción propia, solo agrupa (igual que "Ventas" no tiene vista y
+         entra por defecto en su primer submenú, "Presupuestos"). -->
     <menuitem id="menu_document_folder_root"
               name="Documentos"
-              action="action_document_folder"
               sequence="20"/>
 
     <!-- Icono de menú raíz igual al de Documentos en dfd_holidays -->
@@ -10,4 +11,15 @@
         <field name="use_icon" eval="True"/>
         <field name="icon_class_name">ri-folder-line</field>
     </record>
+
+    <menuitem id="menu_document_folder_explorer"
+              name="Explorador de archivos"
+              action="action_document_folder"
+              parent="menu_document_folder_root"
+              sequence="10"/>
+
+    <menuitem id="menu_document_configuration"
+              name="Configuración"
+              parent="menu_document_folder_root"
+              sequence="30"/>
 </odoo>

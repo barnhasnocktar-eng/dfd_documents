@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="document_folder_empleados" model="document.folder">
+        <field name="name">Empleados</field>
+        <field name="parent_id" eval="False"/>
+    </record>
+</odoo>

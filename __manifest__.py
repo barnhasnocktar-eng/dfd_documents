@@ -19,6 +19,8 @@
         "wizards/document_folder_create_wizard_views.xml",
         # Vistas que dependen de acciones definidas anteriormente
         "data/ui_menus.xml",
+        # Datos por defecto
+        "data/document_folder_data.xml",
     ],
     "assets": {
         "web.assets_backend": [
