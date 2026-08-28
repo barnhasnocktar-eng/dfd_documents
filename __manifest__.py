@@ -8,7 +8,7 @@
     "website": "https://difadi.com",
     "summary": "Gestor de carpetas y documentos con navegación en árbol",
     "category": "Customizations",
-    "depends": ["base", "mail", "spiffy_theme_backend"],
+    "depends": ["base", "base_import", "mail", "spiffy_theme_backend"],
     "data": [
         # Security
         "security/ir.model.access.csv",
