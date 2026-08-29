@@ -3,4 +3,5 @@
 from . import document_folder_create_wizard
 from . import document_folder_rename_wizard
 from . import document_folder_permissions_wizard
+from . import document_file_rename_wizard
 from . import employee_folder_sync_wizard

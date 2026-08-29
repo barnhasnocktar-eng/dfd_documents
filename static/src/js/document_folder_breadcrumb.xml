@@ -44,25 +44,33 @@
         <xpath expr="//t[@t-foreach='getGroupsOrRecords()']" position="after">
             <div class="o_kanban_record d-flex flex-grow-1 flex-md-shrink-1 flex-shrink-0"
                  t-foreach="fileState.files" t-as="file" t-key="file.id"
-                 t-att-data-doc-file-id="file.id"
-                 t-on-click="() => this.openFile(file.id)">
-                <div class="oe_kanban_global_click o_dfd_folder_card">
-                    <img t-att-src="file.iconSrc" class="o_dfd_folder_icon" alt="Documento" draggable="false"/>
-                    <div class="o_dfd_folder_info">
-                        <div class="o_dfd_folder_name">
-                            <t t-esc="file.name"/>
+                 t-att-data-doc-file-id="file.id">
+                <Dropdown class="'o_dfd_file_dropdown flex-grow-1'"
+                           togglerClass="'oe_kanban_global_click o_dfd_folder_card'">
+                    <t t-set-slot="toggler">
+                        <img t-att-src="file.iconSrc" class="o_dfd_folder_icon" alt="Documento" draggable="false"/>
+                        <div class="o_dfd_folder_info">
+                            <div class="o_dfd_folder_name">
+                                <t t-esc="file.name"/>
+                            </div>
+                            <div class="o_dfd_folder_count text-muted">
+                                <t t-esc="file.sizeLabel"/>
+                            </div>
+                            <div class="o_dfd_folder_count text-muted">
+                                Fecha Subida: <t t-esc="file.dateLabel"/>
+                            </div>
                         </div>
-                        <div class="o_dfd_folder_count text-muted">
-                            <t t-esc="file.sizeLabel"/>
-                        </div>
-                        <div class="o_dfd_folder_count text-muted">
-                            Fecha Subida: <t t-esc="file.dateLabel"/>
-                        </div>
-                    </div>
-                    <i class="fa fa-trash-o o_dfd_delete_icon"
-                       title="Eliminar documento"
-                       t-on-click="(ev) => this.confirmDeleteFile(ev, file.id)"/>
-                </div>
+                    </t>
+                    <DropdownItem class="'o_dfd_download_file_menu'" onSelected.bind="() => this.downloadFile(file.id)">
+                        <i class="fa fa-fw fa-download me-1"/>Descargar
+                    </DropdownItem>
+                    <DropdownItem class="'o_dfd_rename_file_menu'" onSelected.bind="() => this.renameFile(file.id)">
+                        <i class="fa fa-fw fa-pencil me-1"/>Renombrar
+                    </DropdownItem>
+                </Dropdown>
+                <i class="fa fa-trash-o o_dfd_delete_icon"
+                   title="Eliminar documento"
+                   t-on-click="(ev) => this.confirmDeleteFile(ev, file.id)"/>
             </div>
         </xpath>
         <xpath expr="//div[hasclass('o_kanban_renderer')]" position="inside">

@@ -2,6 +2,22 @@
 // Todos los derechos reservados. Está prohibido la distribución o modificación de este código sin permiso
 
 .o_dfd_document_folder_kanban {
+    // El toggler del Dropdown de documento se renderiza como <button> nativo (ver
+    // web/core/dropdown/dropdown.xml): se resetea su apariencia de botón para que
+    // .o_dfd_folder_card siga viéndose y comportándose igual que antes de introducir
+    // el menú contextual (Descargar/Renombrar) sobre la tarjeta de documento.
+    .o_dfd_file_dropdown {
+        display: flex;
+        width: 100%;
+    }
+
+    .o_dfd_file_dropdown > .o_dfd_folder_card {
+        width: 100%;
+        border: none;
+        background: none;
+        text-align: left;
+    }
+
     .o_dfd_folder_card {
         display: flex;
         align-items: flex-start;

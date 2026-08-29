@@ -8,6 +8,8 @@ import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
 import { Component, onWillStart, useState, onMounted, onPatched, onWillUnmount } from "@odoo/owl";
 import { formatDate, deserializeDateTime } from "@web/core/l10n/dates";
 import { ConfirmationDialog, deleteConfirmationMessage } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { Dropdown } from "@web/core/dropdown/dropdown";
+import { DropdownItem } from "@web/core/dropdown/dropdown_item";
 import { _t } from "@web/core/l10n/translation";
 import { dragState, callMoveItem, getMoveErrorMessage } from "@dfd_documents/js/document_folder_drag_state";
 import { notifyFolderTreeChanged } from "@dfd_documents/js/document_folder_bus";
@@ -464,9 +466,18 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
         }
     }
 
-    async openFile(fileId) {
+    async downloadFile(fileId) {
         const action = await this.orm.call("document.file", "action_download", [fileId]);
         await this.action.doAction(action);
+    }
+
+    // Abre el wizard de renombrado del documento, mismo mecanismo que RenameFolderMenuItem
+    // (document_folder_rename_menu.js) pero pasando active_file_id en vez de active_folder_id.
+    async renameFile(fileId) {
+        await this.action.doAction("dfd_documents.action_document_file_rename_wizard", {
+            additionalContext: { active_file_id: fileId },
+            onClose: () => this.loadFiles(),
+        });
     }
 
     // Pide confirmación y borra una carpeta (recarga la vista para refrescar el listado).
@@ -501,6 +512,11 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
     }
 }
 DocumentFolderKanbanRenderer.template = "dfd_documents.DocumentFolderKanbanRenderer";
+DocumentFolderKanbanRenderer.components = {
+    ...KanbanRenderer.components,
+    Dropdown,
+    DropdownItem,
+};
 
 class DocumentFolderKanbanController extends KanbanController {
     setup() {
