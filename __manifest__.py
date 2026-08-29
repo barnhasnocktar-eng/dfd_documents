@@ -31,6 +31,7 @@
         # Datos por defecto
         "data/document_folder_data.xml",
         "data/employee_default_folder_data.xml",
+        "data/upload_limits_data.xml",
         # Cron
         "data/cron_document_movement_log_cleanup.xml",
     ],

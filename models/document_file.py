@@ -3,15 +3,38 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-# Límite de tamaño para una subida por drag&drop: un archivo suelto, o la suma de todos los
-# archivos de una carpeta arrastrada (ver document_folder.create_from_upload_tree).
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024
-MAX_UPLOAD_SIZE_MESSAGE = "El tamaño máximo permitido para un archivo o carpeta es de 10MB"
+# Valores por defecto (en MB) de los límites de subida, usados cuando el parámetro del sistema
+# correspondiente no está configurado. El proveedor los edita en Ajustes > Empleados >
+# Documentos (ver res_config_settings.py), en MB para no obligarle a pensar en bytes.
+DEFAULT_MAX_UPLOAD_SIZE_MB = 10
+DEFAULT_MAX_TOTAL_STORAGE_SIZE_MB = 100
 
-# Límite del espacio total ocupado por todos los document.file de la instancia (suma de
-# file_size de sus adjuntos). Una subida que deje el total por encima de este tope se
-# rechaza entera, aunque el archivo/carpeta en sí cumpla MAX_UPLOAD_SIZE.
-MAX_TOTAL_STORAGE_SIZE = 100 * 1024 * 1024
+
+def get_max_upload_size(env):
+    """Límite en bytes para una subida por drag&drop: un archivo suelto, o la suma de todos
+    los archivos de una carpeta arrastrada (ver document_folder.create_from_upload_tree)."""
+    mb = env["ir.config_parameter"].sudo().get_param(
+        "dfd_documents.max_upload_size_mb", default=DEFAULT_MAX_UPLOAD_SIZE_MB
+    )
+    return int(float(mb) * 1024 * 1024)
+
+
+def get_max_upload_size_message(env):
+    mb = get_max_upload_size(env) / (1024 * 1024)
+    mb_label = f"{mb:g}"
+    return f"El tamaño máximo permitido para un archivo o carpeta es de {mb_label}MB"
+
+
+def get_max_total_storage_size(env):
+    """Límite en bytes del espacio total ocupado por todos los document.file de la instancia
+    (suma de file_size de sus adjuntos). Una subida que deje el total por encima de este tope
+    se rechaza entera, aunque el archivo/carpeta en sí cumpla get_max_upload_size."""
+    mb = env["ir.config_parameter"].sudo().get_param(
+        "dfd_documents.max_total_storage_size_mb", default=DEFAULT_MAX_TOTAL_STORAGE_SIZE_MB
+    )
+    return int(float(mb) * 1024 * 1024)
+
+
 MAX_TOTAL_STORAGE_SIZE_MESSAGE = (
     "Subir este archivo excede el máximo total permitido. "
     "Contacte con su proveedor si desea aumentar este límite"
@@ -146,6 +169,28 @@ class DocumentFile(models.Model):
         return (result[0]["file_size"] if result else 0) or 0
 
     @api.model
+    def get_storage_usage(self):
+        """Uso total de espacio para pintar la barra de progreso del árbol de carpetas:
+        bytes usados, límite total y porcentaje (0-100, tope en 100 aunque used > max por
+        alguna carrera de condición entre validación y creación concurrente)."""
+        used = self.get_total_storage_size()
+        max_size = get_max_total_storage_size(self.env)
+        return {
+            "used": used,
+            "max": max_size,
+            "percent": min(100, round(used * 100 / max_size, 1)) if max_size else 0,
+        }
+
+    @api.model
+    def get_upload_limits(self):
+        """Límites de subida configurados (ver Ajustes > Empleados > Documentos), para que el
+        cliente valide antes de leer archivos sin duplicar los valores por defecto en JS."""
+        return {
+            "max_upload_size": get_max_upload_size(self.env),
+            "max_upload_size_message": get_max_upload_size_message(self.env),
+        }
+
+    @api.model
     def create_from_upload(self, name, data, folder_id):
         """Crea el adjunto y el documento a partir de un archivo subido por drag&drop en el kanban.
 
@@ -153,9 +198,9 @@ class DocumentFile(models.Model):
         'data:...;base64,' en el cliente).
         """
         size = get_base64_size(data)
-        if size > MAX_UPLOAD_SIZE:
-            raise ValidationError(MAX_UPLOAD_SIZE_MESSAGE)
-        if self.get_total_storage_size() + size > MAX_TOTAL_STORAGE_SIZE:
+        if size > get_max_upload_size(self.env):
+            raise ValidationError(get_max_upload_size_message(self.env))
+        if self.get_total_storage_size() + size > get_max_total_storage_size(self.env):
             raise ValidationError(MAX_TOTAL_STORAGE_SIZE_MESSAGE)
         attachment = self.env["ir.attachment"].create({
             "name": name,

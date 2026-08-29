@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 Vértice Operativo <soporte@verticeoperativo.com>
+     Todos los derechos reservados. Está prohibido la distribución o modificación de este código sin permiso -->
+<odoo noupdate="1">
+    <!-- Parámetros del sistema (Ajustes > Técnico > Parámetros del sistema) que controlan los
+         límites de subida por drag&drop. noupdate="1": se siembran solo en la instalación, así
+         un valor editado por el proveedor no se pisa en cada actualización del módulo. Ver
+         get_max_upload_size/get_max_total_storage_size en document_file.py. -->
+    <record id="config_parameter_max_upload_size_mb" model="ir.config_parameter">
+        <field name="key">dfd_documents.max_upload_size_mb</field>
+        <field name="value">10</field>
+    </record>
+    <record id="config_parameter_max_total_storage_size_mb" model="ir.config_parameter">
+        <field name="key">dfd_documents.max_total_storage_size_mb</field>
+        <field name="value">100</field>
+    </record>
+</odoo>

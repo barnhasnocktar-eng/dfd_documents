@@ -15,13 +15,13 @@ import { dragState, callMoveItem, getMoveErrorMessage } from "@dfd_documents/js/
 import { notifyFolderTreeChanged } from "@dfd_documents/js/document_folder_bus";
 import { DocumentFolderTreeSidebar } from "@dfd_documents/js/document_folder_tree_sidebar";
 
-// Límite de subida por drag&drop (archivo suelto, o suma de todos los archivos de una carpeta
-// arrastrada): igual valor que MAX_UPLOAD_SIZE en document_file.py. Se valida aquí también,
-// antes de leer los archivos, para no gastar memoria/red en una subida que el backend rechazará.
-// El límite de espacio TOTAL de la instancia (MAX_TOTAL_STORAGE_SIZE) no se valida aquí: solo
-// el backend conoce el total ya ocupado, así que ese aviso llega vía getMoveErrorMessage(error).
-const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
-const MAX_UPLOAD_SIZE_MESSAGE = _t("El tamaño máximo permitido para un archivo o carpeta es de 10MB");
+// Valor de arranque para this.maxUploadSize/-Message (ver DocumentFolderKanbanRenderer.setup):
+// se usa solo hasta que onWillStart trae el valor real configurado por el proveedor vía
+// document.file.get_upload_limits (Ajustes > Empleados > Documentos). El límite de espacio
+// TOTAL de la instancia no se valida aquí: solo el backend conoce el total ya ocupado, así
+// que ese aviso llega vía getMoveErrorMessage(error).
+const DEFAULT_MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
+const DEFAULT_MAX_UPLOAD_SIZE_MESSAGE = _t("El tamaño máximo permitido para un archivo o carpeta es de 10MB");
 
 // Determina el icono a mostrar en la tarjeta de documento según su mimetype.
 const FILE_ICON_BY_MIMETYPE = {
@@ -181,8 +181,18 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
         // compartido con DocumentFolderBreadcrumb para poder soltar sobre la ruta superior.
         this.dragOverEl = null;
 
+        // Límite de subida (archivo suelto, o suma de una carpeta arrastrada): configurable
+        // por el proveedor en Ajustes > Empleados > Documentos (ver res_config_settings.py).
+        // maxUploadSize/-Message empiezan con el valor por defecto y se actualizan en
+        // onWillStart con el real, para no bloquear el primer render por la llamada RPC.
+        this.maxUploadSize = DEFAULT_MAX_UPLOAD_SIZE;
+        this.maxUploadSizeMessage = DEFAULT_MAX_UPLOAD_SIZE_MESSAGE;
+
         onWillStart(async () => {
             await this.loadFiles();
+            const limits = await this.orm.call("document.file", "get_upload_limits", []);
+            this.maxUploadSize = limits.max_upload_size;
+            this.maxUploadSizeMessage = limits.max_upload_size_message;
         });
 
         onMounted(() => {
@@ -398,8 +408,8 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
             // Primero se suma el tamaño real de todos los archivos (sin leer su contenido) para
             // cortar antes de gastar memoria/red si ya se sabe que la carpeta excede el límite.
             const totalSize = await this.getEntriesTotalSize(entries);
-            if (totalSize > MAX_UPLOAD_SIZE) {
-                this.notification.add(MAX_UPLOAD_SIZE_MESSAGE, { type: "danger" });
+            if (totalSize > this.maxUploadSize) {
+                this.notification.add(this.maxUploadSizeMessage, { type: "danger" });
                 await this.loadFiles();
                 await this.props.list.model.load();
                 return;
@@ -441,6 +451,9 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
         }
         await this.loadFiles();
         await this.props.list.model.load();
+        // Toda subida (archivo suelto o carpeta) cambia el espacio total ocupado: el árbol
+        // lateral escucha este mismo evento para refrescar su barra de uso de almacenamiento.
+        notifyFolderTreeChanged();
     }
 
     // Suma el tamaño real (File.size, sin leer contenido) de todos los archivos de un árbol de
@@ -505,8 +518,8 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
 
     async uploadFile(file) {
         const folderId = this.activeFolderId;
-        if (file.size > MAX_UPLOAD_SIZE) {
-            this.notification.add(MAX_UPLOAD_SIZE_MESSAGE, { type: "danger" });
+        if (file.size > this.maxUploadSize) {
+            this.notification.add(this.maxUploadSizeMessage, { type: "danger" });
             return;
         }
         try {
@@ -572,6 +585,7 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
             cancel: async () => {
                 await this.orm.unlink("document.file", [fileId]);
                 await this.loadFiles();
+                notifyFolderTreeChanged();
             },
         });
     }

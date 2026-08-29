@@ -17,21 +17,62 @@ export class DocumentFolderTreeSidebar extends Component {
         this.orm = useService("orm");
         this.action = useService("action");
         this.notification = useService("notification");
-        this.state = useState({ nodesById: {}, rootIds: [], expanded: {}, dragOverFolderId: undefined });
+        this.state = useState({
+            nodesById: {},
+            rootIds: [],
+            expanded: {},
+            dragOverFolderId: undefined,
+            storage: { used: 0, max: 0, percent: 0 },
+        });
 
         onWillStart(async () => {
             await this.loadTree();
+            await this.loadStorageUsage();
         });
 
-        // Recarga el árbol cuando otro componente (kanban al borrar una carpeta, el wizard al
-        // crearla) avisa un cambio de estructura que este panel no originó él mismo.
-        this._onFolderTreeChanged = () => this.loadTree();
+        // Recarga el árbol (y el uso de almacenamiento) cuando otro componente (kanban al
+        // crear/borrar carpeta o documento, el wizard al crear carpeta) avisa un cambio que
+        // este panel no originó él mismo.
+        this._onFolderTreeChanged = () => {
+            this.loadTree();
+            this.loadStorageUsage();
+        };
         onMounted(() => {
             documentFolderBus.addEventListener("folder-tree-changed", this._onFolderTreeChanged);
         });
         onWillUnmount(() => {
             documentFolderBus.removeEventListener("folder-tree-changed", this._onFolderTreeChanged);
         });
+    }
+
+    async loadStorageUsage() {
+        this.state.storage = await this.orm.call("document.file", "get_storage_usage", []);
+    }
+
+    // Texto "42.3 MB de 100 MB" para la barra de uso de almacenamiento, mismo criterio de
+    // formato que formatFileSize en document_folder_breadcrumb.js (KB/MB/GB, sin decimales
+    // por debajo de 1 KB).
+    formatBytes(bytes) {
+        if (!bytes) {
+            return "0 KB";
+        }
+        const units = ["bytes", "KB", "MB", "GB"];
+        let value = bytes;
+        let unitIndex = 0;
+        while (value >= 1024 && unitIndex < units.length - 1) {
+            value /= 1024;
+            unitIndex++;
+        }
+        const decimals = unitIndex === 0 ? 0 : 1;
+        return `${value.toFixed(decimals)} ${units[unitIndex]}`;
+    }
+
+    get storageUsedLabel() {
+        return this.formatBytes(this.state.storage.used);
+    }
+
+    get storageMaxLabel() {
+        return this.formatBytes(this.state.storage.max);
     }
 
     async loadTree() {

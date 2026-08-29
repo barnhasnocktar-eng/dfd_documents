@@ -3,21 +3,33 @@
 
     <t t-name="dfd_documents.DocumentFolderTreeSidebar">
         <div class="o_dfd_folder_tree_sidebar">
-            <div class="o_dfd_folder_tree_root"
-                 t-att-class="{ o_dfd_folder_drag_over: state.dragOverFolderId === false }"
-                 t-on-dragover="(ev) => this.onNodeDragOver(ev, false)"
-                 t-on-dragleave="() => this.onNodeDragLeave()"
-                 t-on-drop="(ev) => this.onNodeDrop(ev, false)"
-                 t-on-click="() => this.goTo(false)">
-                <img src="/dfd_documents/static/src/img/folder.png" class="o_dfd_folder_tree_icon" alt="Carpeta"/>Documentos
-            </div>
-            <ul class="o_dfd_folder_tree_list">
-                <t t-foreach="state.rootIds" t-as="folderId" t-key="folderId">
-                    <t t-call="dfd_documents.DocumentFolderTreeNode">
-                        <t t-set="folderId" t-value="folderId"/>
+            <div class="o_dfd_folder_tree_scroll">
+                <div class="o_dfd_folder_tree_root"
+                     t-att-class="{ o_dfd_folder_drag_over: state.dragOverFolderId === false }"
+                     t-on-dragover="(ev) => this.onNodeDragOver(ev, false)"
+                     t-on-dragleave="() => this.onNodeDragLeave()"
+                     t-on-drop="(ev) => this.onNodeDrop(ev, false)"
+                     t-on-click="() => this.goTo(false)">
+                    <img src="/dfd_documents/static/src/img/folder.png" class="o_dfd_folder_tree_icon" alt="Carpeta"/>Documentos
+                </div>
+                <ul class="o_dfd_folder_tree_list">
+                    <t t-foreach="state.rootIds" t-as="folderId" t-key="folderId">
+                        <t t-call="dfd_documents.DocumentFolderTreeNode">
+                            <t t-set="folderId" t-value="folderId"/>
+                        </t>
                     </t>
-                </t>
-            </ul>
+                </ul>
+            </div>
+            <div class="o_dfd_storage_usage" title="Espacio de almacenamiento usado">
+                <div class="o_dfd_storage_usage_label">
+                    <t t-esc="storageUsedLabel"/> de <t t-esc="storageMaxLabel"/>
+                </div>
+                <div class="o_dfd_storage_usage_bar">
+                    <div class="o_dfd_storage_usage_bar_fill"
+                         t-att-class="{ o_dfd_storage_usage_bar_full: state.storage.percent >= 100 }"
+                         t-attf-style="width: {{ state.storage.percent }}%"/>
+                </div>
+            </div>
         </div>
     </t>
 
