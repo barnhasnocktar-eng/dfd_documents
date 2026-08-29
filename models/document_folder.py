@@ -477,15 +477,19 @@ class DocumentFolder(models.Model):
         return self.env.user.id in self.effective_employee_read_ids.user_id.ids
 
     def _is_read_only_for_current_user(self):
-        """True si el usuario actual tiene acceso a `self` únicamente de solo lectura (ni
-        `base.group_system` ni lectura/escritura efectiva, pero sí grupo/empleado de solo
-        lectura efectivo). Usado para bloquear crear/renombrar/mover/subir/eliminar
-        contenido dentro de una carpeta de solo lectura, tanto en Python (`DocumentFolder`/
-        `DocumentFile`) como expuesto a JS (ver `can_write_folder`)."""
+        """True si el usuario actual NO tiene lectura/escritura efectiva sobre `self` (ni es
+        `base.group_system`), sin importar el motivo por el que la ve: grupo/empleado de
+        solo lectura propio o heredado, o simple visibilidad de navegación por ser antepasada
+        de una carpeta accesible (`is_ancestor_of_accessible`, ver "Navegación por el camino
+        de carpetas antepasadas" en MODULE_CONTEXT.md) — en ambos casos el usuario puede
+        NAVEGAR pero no escribir, así que ambos cuentan igual aquí. Usado para bloquear
+        crear/renombrar/mover/subir/eliminar contenido dentro de una carpeta sin escritura,
+        tanto en Python (`DocumentFolder`/`DocumentFile`) como expuesto a JS (ver
+        `can_write_folder`)."""
         self.ensure_one()
-        if self.env.user.has_group("base.group_system") or self._is_accessible_by_current_user():
+        if self.env.user.has_group("base.group_system"):
             return False
-        return self._has_read_only_access_by_current_user()
+        return not self._is_accessible_by_current_user()
 
     def _check_can_write_content(self):
         """Corta con `UserError` si el usuario actual solo tiene acceso de solo lectura a
