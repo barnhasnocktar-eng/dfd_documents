@@ -60,6 +60,23 @@ const isDisplayedIfCanManage = async (env) => {
     return env.services.orm.call("document.folder", "can_manage_folder", [folderId]);
 };
 
+// Igual que isDisplayedIfCanManage, pero además oculta el item si la carpeta está bloqueada:
+// se usa en "Renombrar" y "Eliminar" (el backend ya rechaza ambas operaciones sobre una carpeta
+// con is_locked, ver write()/unlink() en document_folder.py), no en "Bloquear/Desbloquear" ni
+// en "Permisos", que deben seguir disponibles para poder desbloquearla o gestionar sus accesos.
+const isDisplayedIfCanManageAndUnlocked = async (env) => {
+    const { config, isSmall, searchModel } = env;
+    if (!isFolderCogMenuCandidate({ config, isSmall, searchModel })) {
+        return false;
+    }
+    const folderId = searchModel.context.active_folder_id;
+    const [canManage, [folder]] = await Promise.all([
+        env.services.orm.call("document.folder", "can_manage_folder", [folderId]),
+        env.services.orm.read("document.folder", [folderId], ["is_locked"]),
+    ]);
+    return canManage && !folder.is_locked;
+};
+
 // El KanbanView nativo (kanban_controller.xml) monta <CogMenu/> sin pasarle props.items, así que
 // los bindings de ir.actions.act_window (binding_model_id/binding_view_types) nunca llegan a ese
 // menú en kanban. Se registra en su lugar un item propio del cogMenu registry, igual que hace
@@ -88,7 +105,7 @@ export class RenameFolderMenuItem extends Component {
 export const renameFolderMenuItem = {
     Component: RenameFolderMenuItem,
     groupNumber: STATIC_ACTIONS_GROUP_NUMBER,
-    isDisplayed: isDisplayedIfCanManage,
+    isDisplayed: isDisplayedIfCanManageAndUnlocked,
 };
 
 cogMenuRegistry.add("dfd-rename-folder-menu", renameFolderMenuItem, { sequence: 2 });
@@ -221,7 +238,7 @@ export class DeleteFolderMenuItem extends Component {
 export const deleteFolderMenuItem = {
     Component: DeleteFolderMenuItem,
     groupNumber: STATIC_ACTIONS_GROUP_NUMBER,
-    isDisplayed: isDisplayedIfCanManage,
+    isDisplayed: isDisplayedIfCanManageAndUnlocked,
 };
 
 cogMenuRegistry.add("dfd-delete-folder-menu", deleteFolderMenuItem, { sequence: 5 });

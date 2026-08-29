@@ -554,17 +554,23 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
     }
 
     // Pide confirmación y borra un documento de la carpeta activa.
+    //
+    // El botón resaltado (btn-primary) del ConfirmationDialog nativo es siempre el de
+    // "confirm", sin prop para cambiarlo (ver web.ConfirmationDialog): para que el botón
+    // resaltado sea "No, manténgalo" y no "Eliminar", se invierten los slots — "confirm"
+    // (resaltado) cierra sin borrar, "cancel" (secundario) ejecuta el borrado real.
     confirmDeleteFile(ev, fileId) {
         ev.stopPropagation();
         this.dialog.add(ConfirmationDialog, {
             title: _t("Eliminar documento"),
-            body: _t("¿Seguro que quieres eliminar este documento?"),
-            confirmLabel: _t("Eliminar"),
-            confirm: async () => {
+            body: _t("¿Seguro que quieres eliminar este documento? Esta acción es irreversible."),
+            confirmLabel: _t("No, manténgalo"),
+            confirm: () => {},
+            cancelLabel: _t("Eliminar"),
+            cancel: async () => {
                 await this.orm.unlink("document.file", [fileId]);
                 await this.loadFiles();
             },
-            cancel: () => {},
         });
     }
 }

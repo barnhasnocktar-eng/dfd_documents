@@ -24,7 +24,7 @@
                                     <t t-esc="record.child_count.value"/> subcarpeta(s)<t t-if="record.file_count.value">, <t t-esc="record.file_count.value"/> documento(s)</t>
                                 </div>
                             </div>
-                            <a type="delete" class="fa fa-trash-o o_dfd_delete_icon" title="Eliminar carpeta"/>
+                            <a t-if="!record.is_locked.raw_value" type="delete" class="fa fa-trash-o o_dfd_delete_icon" title="Eliminar carpeta"/>
                         </div>
                     </t>
                 </templates>
