@@ -18,8 +18,10 @@ import { DocumentFolderTreeSidebar } from "@dfd_documents/js/document_folder_tre
 // Límite de subida por drag&drop (archivo suelto, o suma de todos los archivos de una carpeta
 // arrastrada): igual valor que MAX_UPLOAD_SIZE en document_file.py. Se valida aquí también,
 // antes de leer los archivos, para no gastar memoria/red en una subida que el backend rechazará.
-const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
-const MAX_UPLOAD_SIZE_MESSAGE = _t("El tamaño máximo permitido para un archivo o carpeta es de 100MB");
+// El límite de espacio TOTAL de la instancia (MAX_TOTAL_STORAGE_SIZE) no se valida aquí: solo
+// el backend conoce el total ya ocupado, así que ese aviso llega vía getMoveErrorMessage(error).
+const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
+const MAX_UPLOAD_SIZE_MESSAGE = _t("El tamaño máximo permitido para un archivo o carpeta es de 10MB");
 
 // Determina el icono a mostrar en la tarjeta de documento según su mimetype.
 const FILE_ICON_BY_MIMETYPE = {

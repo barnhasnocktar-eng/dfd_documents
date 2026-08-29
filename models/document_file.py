@@ -5,8 +5,17 @@ from odoo.exceptions import ValidationError
 
 # Límite de tamaño para una subida por drag&drop: un archivo suelto, o la suma de todos los
 # archivos de una carpeta arrastrada (ver document_folder.create_from_upload_tree).
-MAX_UPLOAD_SIZE = 100 * 1024 * 1024
-MAX_UPLOAD_SIZE_MESSAGE = "El tamaño máximo permitido para un archivo o carpeta es de 100MB"
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024
+MAX_UPLOAD_SIZE_MESSAGE = "El tamaño máximo permitido para un archivo o carpeta es de 10MB"
+
+# Límite del espacio total ocupado por todos los document.file de la instancia (suma de
+# file_size de sus adjuntos). Una subida que deje el total por encima de este tope se
+# rechaza entera, aunque el archivo/carpeta en sí cumpla MAX_UPLOAD_SIZE.
+MAX_TOTAL_STORAGE_SIZE = 100 * 1024 * 1024
+MAX_TOTAL_STORAGE_SIZE_MESSAGE = (
+    "Subir este archivo excede el máximo total permitido. "
+    "Contacte con su proveedor si desea aumentar este límite"
+)
 
 
 def get_base64_size(data):
@@ -129,14 +138,25 @@ class DocumentFile(models.Model):
                 )
 
     @api.model
+    def get_total_storage_size(self):
+        """Suma en bytes de todos los adjuntos de document.file ya existentes en la instancia."""
+        result = self.env["ir.attachment"].sudo().read_group(
+            [("res_model", "=", self._name)], ["file_size:sum"], []
+        )
+        return (result[0]["file_size"] if result else 0) or 0
+
+    @api.model
     def create_from_upload(self, name, data, folder_id):
         """Crea el adjunto y el documento a partir de un archivo subido por drag&drop en el kanban.
 
         `data` llega en base64 (tal cual lo produce FileReader.readAsDataURL recortando el prefijo
         'data:...;base64,' en el cliente).
         """
-        if get_base64_size(data) > MAX_UPLOAD_SIZE:
+        size = get_base64_size(data)
+        if size > MAX_UPLOAD_SIZE:
             raise ValidationError(MAX_UPLOAD_SIZE_MESSAGE)
+        if self.get_total_storage_size() + size > MAX_TOTAL_STORAGE_SIZE:
+            raise ValidationError(MAX_TOTAL_STORAGE_SIZE_MESSAGE)
         attachment = self.env["ir.attachment"].create({
             "name": name,
             "datas": data,

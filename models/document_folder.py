@@ -3,7 +3,13 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
-from .document_file import MAX_UPLOAD_SIZE, MAX_UPLOAD_SIZE_MESSAGE, get_base64_size
+from .document_file import (
+    MAX_TOTAL_STORAGE_SIZE,
+    MAX_TOTAL_STORAGE_SIZE_MESSAGE,
+    MAX_UPLOAD_SIZE,
+    MAX_UPLOAD_SIZE_MESSAGE,
+    get_base64_size,
+)
 
 
 class DocumentFolder(models.Model):
@@ -492,12 +498,15 @@ class DocumentFolder(models.Model):
 
         `tree` es una lista de nodos {"type": "file"|"folder", "name": ..., "data": <base64>,
         "children": [...]} tal como lo construye el JS al recorrer los DataTransferItem con
-        webkitGetAsEntry(). Valida que la suma de todos los archivos del árbol no supere
-        MAX_UPLOAD_SIZE antes de crear nada, para no dejar la carpeta a medio subir si se
-        excede el límite.
+        webkitGetAsEntry(). Valida, antes de crear nada, que la suma de todos los archivos del
+        árbol no supere MAX_UPLOAD_SIZE y que sumarla al espacio ya ocupado no supere
+        MAX_TOTAL_STORAGE_SIZE, para no dejar la carpeta a medio subir si se excede algún límite.
         """
-        if self._get_upload_tree_size(tree) > MAX_UPLOAD_SIZE:
+        tree_size = self._get_upload_tree_size(tree)
+        if tree_size > MAX_UPLOAD_SIZE:
             raise ValidationError(MAX_UPLOAD_SIZE_MESSAGE)
+        if self.env["document.file"].get_total_storage_size() + tree_size > MAX_TOTAL_STORAGE_SIZE:
+            raise ValidationError(MAX_TOTAL_STORAGE_SIZE_MESSAGE)
         self._create_from_upload_tree_nodes(tree, folder_id)
 
     def _get_upload_tree_size(self, tree):
