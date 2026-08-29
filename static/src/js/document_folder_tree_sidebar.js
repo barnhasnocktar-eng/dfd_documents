@@ -2,7 +2,7 @@
 // Copyright 2026 Vértice Operativo <soporte@verticeoperativo.com>
 // Todos los derechos reservados. Está prohibido la distribución o modificación de este código sin permiso
 
-import { Component, useState, onWillStart, onMounted, onWillUnmount } from "@odoo/owl";
+import { Component, useState, useRef, onWillStart, onMounted, onPatched, onWillUnmount } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import { dragState, callMoveItem, getMoveErrorMessage } from "@dfd_documents/js/document_folder_drag_state";
@@ -17,6 +17,7 @@ export class DocumentFolderTreeSidebar extends Component {
         this.orm = useService("orm");
         this.action = useService("action");
         this.notification = useService("notification");
+        this.rootRef = useRef("root");
         this.state = useState({
             nodesById: {},
             rootIds: [],
@@ -39,10 +40,27 @@ export class DocumentFolderTreeSidebar extends Component {
         };
         onMounted(() => {
             documentFolderBus.addEventListener("folder-tree-changed", this._onFolderTreeChanged);
+            this.makeNodesDraggable();
         });
+        // El árbol se repinta en cada loadTree() (expand/collapse, cambios de otros componentes):
+        // el atributo draggable puesto solo por template no siempre arranca el drag en Chrome
+        // cuando el gesto empieza sobre el <img> o el <i> hijos del nodo (mismo problema ya visto
+        // en las tarjetas del kanban, ver makeFolderCardsDraggable en document_folder_breadcrumb.js),
+        // así que se fuerza por JS igual que allí y hay que reaplicarlo tras cada repintado.
+        onPatched(() => this.makeNodesDraggable());
         onWillUnmount(() => {
             documentFolderBus.removeEventListener("folder-tree-changed", this._onFolderTreeChanged);
         });
+    }
+
+    makeNodesDraggable() {
+        const el = this.rootRef.el;
+        if (!el) {
+            return;
+        }
+        for (const label of el.querySelectorAll(".o_dfd_folder_tree_label")) {
+            label.draggable = true;
+        }
     }
 
     async loadStorageUsage() {

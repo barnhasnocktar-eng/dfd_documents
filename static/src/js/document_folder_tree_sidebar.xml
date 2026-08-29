@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
 
     <t t-name="dfd_documents.DocumentFolderTreeSidebar">
-        <div class="o_dfd_folder_tree_sidebar">
+        <div class="o_dfd_folder_tree_sidebar" t-ref="root">
             <div class="o_dfd_folder_tree_scroll">
                 <div class="o_dfd_folder_tree_root"
                      t-att-class="{ o_dfd_folder_drag_over: state.dragOverFolderId === false }"
@@ -46,7 +46,6 @@
                  t-on-drop="(ev) => this.onNodeDrop(ev, folderId)"
                  t-on-dragstart="(ev) => this.onNodeDragStart(ev, folderId)"
                  t-on-dragend="() => this.onNodeDragEnd()"
-                 t-att-draggable="true"
                  t-on-click="() => this.goTo(folderId)">
                 <i t-if="node.childIds.length"
                    t-att-class="isExpanded(folderId) ? 'fa fa-caret-down' : 'fa fa-caret-right'"
