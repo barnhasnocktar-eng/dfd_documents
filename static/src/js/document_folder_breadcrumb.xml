@@ -60,6 +60,9 @@
                                 Fecha Subida: <t t-esc="file.dateLabel"/>
                             </div>
                         </div>
+                        <i class="fa fa-trash-o o_dfd_delete_icon"
+                           title="Eliminar documento"
+                           t-on-click.stop="(ev) => this.confirmDeleteFile(ev, file.id)"/>
                     </t>
                     <DropdownItem class="'o_dfd_download_file_menu'" onSelected.bind="() => this.downloadFile(file.id)">
                         <i class="fa fa-fw fa-download me-1"/>Descargar
@@ -68,9 +71,6 @@
                         <i class="fa fa-fw fa-pencil me-1"/>Renombrar
                     </DropdownItem>
                 </Dropdown>
-                <i class="fa fa-trash-o o_dfd_delete_icon"
-                   title="Eliminar documento"
-                   t-on-click="(ev) => this.confirmDeleteFile(ev, file.id)"/>
             </div>
         </xpath>
         <xpath expr="//div[hasclass('o_kanban_renderer')]" position="inside">

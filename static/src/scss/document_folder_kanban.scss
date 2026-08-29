@@ -6,16 +6,50 @@
     // web/core/dropdown/dropdown.xml): se resetea su apariencia de botón para que
     // .o_dfd_folder_card siga viéndose y comportándose igual que antes de introducir
     // el menú contextual (Descargar/Renombrar) sobre la tarjeta de documento.
-    .o_dfd_file_dropdown {
+    //
+    // El wrapper .o-dropdown pasa a ser hijo directo de .o_kanban_record, y el CSS nativo
+    // (kanban_controller.scss) aplica automáticamente a TODO ">div:not(.o_dropdown_kanban)"
+    // hijo directo de .o_kanban_record un padding/border/background propios (KanbanRecord-
+    // padding-v/h) pensados para ser el único nivel de "tarjeta". Sin anularlos aquí, ese
+    // padding nativo se suma al padding de .o_dfd_folder_card (mío, más adentro) y descuadra
+    // el contenido hacia abajo/derecha respecto a las tarjetas de carpeta, que sí son ese
+    // único nivel.
+    // Cualificado con .o_kanban_record (y el propio div implícito de .o_dfd_file_dropdown)
+    // para igualar la especificidad de la regla nativa ".o_kanban_record > div:not(...)"
+    // (kanban_controller.scss): con menos especificidad, el padding/border/background de
+    // ahí ganaba la cascada y este override no llegaba a aplicarse nunca.
+    .o_kanban_record > div.o_dfd_file_dropdown {
         display: flex;
         width: 100%;
+        padding: 0;
+        border: none;
+        background: none;
+
+        &::after {
+            display: none;
+        }
     }
 
     .o_dfd_file_dropdown > .o_dfd_folder_card {
+        flex: 1 1 auto;
         width: 100%;
+        margin: 0;
         border: none;
         background: none;
         text-align: left;
+        font: inherit;
+        line-height: normal;
+        // Bootstrap fija su propio color de texto en .dropdown-toggle (variable --bs-body-color,
+        // fija en claro): sin este reset, el título de la tarjeta de documento no sigue la
+        // paleta de o_dfd_folder_name/o_dfd_folder_info y queda en negro también en modo oscuro.
+        color: inherit;
+
+        // Bootstrap añade un ::after (caret) y padding-right extra a todo .dropdown-toggle:
+        // sin esto el texto queda descentrado respecto a las tarjetas de carpeta, que no
+        // son botones y no tienen ese espacio reservado.
+        &::after {
+            display: none;
+        }
     }
 
     .o_dfd_folder_card {
