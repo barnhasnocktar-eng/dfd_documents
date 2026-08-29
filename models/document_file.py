@@ -3,6 +3,24 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+# Límite de tamaño para una subida por drag&drop: un archivo suelto, o la suma de todos los
+# archivos de una carpeta arrastrada (ver document_folder.create_from_upload_tree).
+MAX_UPLOAD_SIZE = 100 * 1024 * 1024
+MAX_UPLOAD_SIZE_MESSAGE = "El tamaño máximo permitido para un archivo o carpeta es de 100MB"
+
+
+def get_base64_size(data):
+    """Tamaño real en bytes (decodificado) de un string en base64.
+
+    Evita decodificar todo el contenido en memoria: base64 codifica cada 3 bytes en 4
+    caracteres, así que el tamaño real se calcula a partir de la longitud del string y su
+    padding ('=' al final), sin llamar a base64.b64decode sobre el archivo completo.
+    """
+    if not data:
+        return 0
+    padding = len(data) - len(data.rstrip("="))
+    return (len(data) * 3) // 4 - padding
+
 
 class DocumentFile(models.Model):
     _name = "document.file"
@@ -50,6 +68,11 @@ class DocumentFile(models.Model):
         return result
 
     def unlink(self):
+        # attachment_id es ondelete="cascade": Odoo gestiona esa cascada él mismo en la capa
+        # ORM (no es solo la FK de Postgres), así que super().unlink() ya borra también el
+        # ir.attachment asociado. No hace falta (ni hay que) borrarlo aquí explícitamente:
+        # intentarlo después de super().unlink() sale con "el registro no existe", porque
+        # Odoo ya lo borró como parte de la cascada.
         for document in self:
             document._log_movement("unlink", "Documento eliminado")
         return super().unlink()
@@ -112,6 +135,8 @@ class DocumentFile(models.Model):
         `data` llega en base64 (tal cual lo produce FileReader.readAsDataURL recortando el prefijo
         'data:...;base64,' en el cliente).
         """
+        if get_base64_size(data) > MAX_UPLOAD_SIZE:
+            raise ValidationError(MAX_UPLOAD_SIZE_MESSAGE)
         attachment = self.env["ir.attachment"].create({
             "name": name,
             "datas": data,

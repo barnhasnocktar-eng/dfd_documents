@@ -3,6 +3,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from .document_file import MAX_UPLOAD_SIZE, MAX_UPLOAD_SIZE_MESSAGE, get_base64_size
+
 
 class DocumentFolder(models.Model):
     _name = "document.folder"
@@ -135,6 +137,16 @@ class DocumentFolder(models.Model):
         all_affected = self.search([("id", "child_of", self.ids)])
         for folder in all_affected:
             folder._log_movement("unlink", "Carpeta eliminada")
+        # folder_id (en document.file) es ondelete="cascade": es una FK de Postgres pura, así
+        # que borrar estas carpetas borrará sus document.file por cascada SQL directa, SIN pasar
+        # por DocumentFile.unlink() (que es quien borra el ir.attachment asociado). Sin este
+        # unlink() explícito aquí, cada documento dentro de la carpeta dejaría su adjunto (con
+        # el contenido real del archivo, hasta 100MB cada uno) huérfano en BD para siempre.
+        # sudo(): rule_document_file_group_access filtra document.file por grupo/empleado
+        # efectivo de SU PROPIA carpeta, que puede no coincidir con el del usuario que borra
+        # (p.ej. admin borrando una carpeta ajena): sin sudo, el search no encontraría esos
+        # documentos y sus adjuntos se quedarían huérfanos igual, en silencio.
+        self.env["document.file"].sudo().search([("folder_id", "in", all_affected.ids)]).unlink()
         return super().unlink()
 
     def _get_movement_log_path(self):
@@ -476,12 +488,30 @@ class DocumentFolder(models.Model):
 
     @api.model
     def create_from_upload_tree(self, tree, folder_id):
-        """Recrea recursivamente en `folder_id` un árbol de carpetas/archivos subido por drag&drop.
+        """Recrea en `folder_id` un árbol de carpetas/archivos subido por drag&drop.
 
         `tree` es una lista de nodos {"type": "file"|"folder", "name": ..., "data": <base64>,
         "children": [...]} tal como lo construye el JS al recorrer los DataTransferItem con
-        webkitGetAsEntry(). Reutiliza document.file.create_from_upload para cada archivo.
+        webkitGetAsEntry(). Valida que la suma de todos los archivos del árbol no supere
+        MAX_UPLOAD_SIZE antes de crear nada, para no dejar la carpeta a medio subir si se
+        excede el límite.
         """
+        if self._get_upload_tree_size(tree) > MAX_UPLOAD_SIZE:
+            raise ValidationError(MAX_UPLOAD_SIZE_MESSAGE)
+        self._create_from_upload_tree_nodes(tree, folder_id)
+
+    def _get_upload_tree_size(self, tree):
+        """Suma en bytes de todos los archivos (recorriendo subcarpetas) de un árbol de subida."""
+        total = 0
+        for node in tree:
+            if node.get("type") == "folder":
+                total += self._get_upload_tree_size(node.get("children") or [])
+            else:
+                total += get_base64_size(node.get("data"))
+        return total
+
+    def _create_from_upload_tree_nodes(self, tree, folder_id):
+        """Crea recursivamente las carpetas/archivos de `tree`, ya validado el tamaño total."""
         DocumentFile = self.env["document.file"]
         for node in tree:
             if node.get("type") == "folder":
@@ -489,6 +519,6 @@ class DocumentFolder(models.Model):
                     "name": node.get("name"),
                     "parent_id": folder_id,
                 })
-                self.create_from_upload_tree(node.get("children") or [], subfolder.id)
+                self._create_from_upload_tree_nodes(node.get("children") or [], subfolder.id)
             else:
                 DocumentFile.create_from_upload(node.get("name"), node.get("data"), folder_id)

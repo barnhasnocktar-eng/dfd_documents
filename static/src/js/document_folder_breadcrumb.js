@@ -15,6 +15,12 @@ import { dragState, callMoveItem, getMoveErrorMessage } from "@dfd_documents/js/
 import { notifyFolderTreeChanged } from "@dfd_documents/js/document_folder_bus";
 import { DocumentFolderTreeSidebar } from "@dfd_documents/js/document_folder_tree_sidebar";
 
+// Límite de subida por drag&drop (archivo suelto, o suma de todos los archivos de una carpeta
+// arrastrada): igual valor que MAX_UPLOAD_SIZE en document_file.py. Se valida aquí también,
+// antes de leer los archivos, para no gastar memoria/red en una subida que el backend rechazará.
+const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
+const MAX_UPLOAD_SIZE_MESSAGE = _t("El tamaño máximo permitido para un archivo o carpeta es de 100MB");
+
 // Determina el icono a mostrar en la tarjeta de documento según su mimetype.
 const FILE_ICON_BY_MIMETYPE = {
     "application/pdf": "pdf.png",
@@ -162,7 +168,10 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
         this.action = useService("action");
         this.notification = useService("notification");
         this.dialog = useService("dialog");
+        // uploadState.total > 0 mientras dura una subida (uno o varios archivos, sueltos o en
+        // carpeta): pinta el overlay de progreso "X de Y" en vez del overlay de "soltar aquí".
         this.fileState = useState({ files: [], dragging: false });
+        this.uploadState = useState({ current: 0, total: 0 });
         // this.rootRef ya lo define KanbanRenderer (useRef("root")) — se reutiliza tal cual.
 
         // Tarjeta carpeta sobre la que está el cursor, solo para resaltarla con CSS mientras
@@ -384,29 +393,69 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
 
         if (entries.length) {
             // Navegador soporta entries (Chrome/Edge/Firefox): recorremos carpetas y subcarpetas.
-            const tree = [];
-            for (const entry of entries) {
-                tree.push(await this.buildTreeNode(entry));
+            // Primero se suma el tamaño real de todos los archivos (sin leer su contenido) para
+            // cortar antes de gastar memoria/red si ya se sabe que la carpeta excede el límite.
+            const totalSize = await this.getEntriesTotalSize(entries);
+            if (totalSize > MAX_UPLOAD_SIZE) {
+                this.notification.add(MAX_UPLOAD_SIZE_MESSAGE, { type: "danger" });
+                await this.loadFiles();
+                await this.props.list.model.load();
+                return;
             }
+            // El árbol completo viaja en una sola llamada ORM, así que aquí no hay progreso fino
+            // por archivo: solo se marca "hay una subida en curso" (total=1) para el overlay.
+            this.uploadState.current = 0;
+            this.uploadState.total = 1;
             try {
+                const tree = [];
+                for (const entry of entries) {
+                    tree.push(await this.buildTreeNode(entry));
+                }
                 await this.orm.call("document.folder", "create_from_upload_tree", [
                     tree,
                     this.activeFolderId,
                 ]);
+                this.notification.add(_t("Carpeta subida correctamente."), { type: "success" });
             } catch (error) {
-                this.notification.add(_t("No se pudo completar la subida de la carpeta."), {
-                    type: "danger",
-                });
+                this.notification.add(
+                    getMoveErrorMessage(error) || _t("No se pudo completar la subida de la carpeta."),
+                    { type: "danger" }
+                );
+            } finally {
+                this.uploadState.current = 0;
+                this.uploadState.total = 0;
             }
         } else {
             // Fallback: navegador sin soporte de entries, solo archivos sueltos.
             const files = [...(ev.dataTransfer?.files || [])];
+            this.uploadState.current = 0;
+            this.uploadState.total = files.length;
             for (const file of files) {
                 await this.uploadFile(file);
+                this.uploadState.current++;
             }
+            this.uploadState.current = 0;
+            this.uploadState.total = 0;
         }
         await this.loadFiles();
         await this.props.list.model.load();
+    }
+
+    // Suma el tamaño real (File.size, sin leer contenido) de todos los archivos de un árbol de
+    // FileSystemEntry, recorriendo subcarpetas. Se usa para validar el límite de subida antes
+    // de construir el árbol base64 completo en buildTreeNode.
+    async getEntriesTotalSize(entries) {
+        let total = 0;
+        for (const entry of entries) {
+            if (entry.isDirectory) {
+                const children = await this.readAllEntries(entry.createReader());
+                total += await this.getEntriesTotalSize(children);
+            } else {
+                const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+                total += file.size;
+            }
+        }
+        return total;
     }
 
     // Convierte recursivamente un FileSystemEntry (archivo o carpeta) en el árbol
@@ -454,6 +503,10 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
 
     async uploadFile(file) {
         const folderId = this.activeFolderId;
+        if (file.size > MAX_UPLOAD_SIZE) {
+            this.notification.add(MAX_UPLOAD_SIZE_MESSAGE, { type: "danger" });
+            return;
+        }
         try {
             const base64Data = await this.readFileAsBase64(file);
             await this.orm.call("document.file", "create_from_upload", [
@@ -461,8 +514,12 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
                 base64Data,
                 folderId,
             ]);
+            this.notification.add(_t('"%s" subido correctamente.', file.name), { type: "success" });
         } catch (error) {
-            this.notification.add(`No se pudo subir "${file.name}".`, { type: "danger" });
+            this.notification.add(
+                getMoveErrorMessage(error) || _t('No se pudo subir "%s".', file.name),
+                { type: "danger" }
+            );
         }
     }
 

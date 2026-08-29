@@ -74,8 +74,15 @@
             </div>
         </xpath>
         <xpath expr="//div[hasclass('o_kanban_renderer')]" position="inside">
-            <div class="o_dfd_kanban_drop_overlay" t-if="fileState.dragging">
+            <div class="o_dfd_kanban_drop_overlay" t-if="fileState.dragging and !uploadState.total">
                 <i class="fa fa-upload me-2"/>Soltar para subir a esta carpeta
+            </div>
+            <div class="o_dfd_kanban_drop_overlay o_dfd_kanban_uploading_overlay" t-if="uploadState.total">
+                <i class="fa fa-spinner fa-spin me-2"/>
+                <t t-if="uploadState.total > 1">
+                    Subiendo <t t-esc="uploadState.current"/> de <t t-esc="uploadState.total"/>...
+                </t>
+                <t t-else="">Subiendo...</t>
             </div>
         </xpath>
     </t>

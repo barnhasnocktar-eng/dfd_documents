@@ -114,6 +114,13 @@
         font-weight: 600;
         color: var(--o-brand-primary, #714b67);
     }
+
+    // Overlay de subida en curso: mismo estilo base que el de "soltar aquí", pero con fondo
+    // propio para que se distinga aunque ya no se esté arrastrando nada (dragging=false).
+    .o_dfd_kanban_uploading_overlay {
+        background-color: rgba(113, 75, 103, 0.08);
+        border-radius: 4px;
+    }
 }
 
 // .o_content (de web.Layout) pasa a ser grid de 2 columnas cuando contiene el árbol lateral:
