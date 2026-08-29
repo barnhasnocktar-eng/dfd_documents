@@ -39,7 +39,7 @@
 
     <t t-name="dfd_documents.DocumentFolderKanbanRenderer" t-inherit="web.KanbanRenderer" t-inherit-mode="primary">
         <xpath expr="//div[hasclass('o_kanban_renderer')]" position="attributes">
-            <attribute name="t-att-class">{ o_dfd_kanban_dragging: fileState.dragging }</attribute>
+            <attribute name="t-att-class">{ o_dfd_kanban_dragging: fileState.dragging, o_dfd_readonly: !fileState.canWrite }</attribute>
         </xpath>
         <xpath expr="//t[@t-foreach='getGroupsOrRecords()']" position="after">
             <div class="o_kanban_record d-flex flex-grow-1 flex-md-shrink-1 flex-shrink-0"
@@ -60,14 +60,14 @@
                                 Fecha Subida: <t t-esc="file.dateLabel"/>
                             </div>
                         </div>
-                        <i class="fa fa-trash-o o_dfd_delete_icon"
+                        <i t-if="fileState.canWrite" class="fa fa-trash-o o_dfd_delete_icon"
                            title="Eliminar documento"
                            t-on-click.stop="(ev) => this.confirmDeleteFile(ev, file.id)"/>
                     </t>
                     <DropdownItem class="'o_dfd_download_file_menu'" onSelected.bind="() => this.downloadFile(file.id)">
                         <i class="fa fa-fw fa-download me-1"/>Descargar
                     </DropdownItem>
-                    <DropdownItem class="'o_dfd_rename_file_menu'" onSelected.bind="() => this.renameFile(file.id)">
+                    <DropdownItem t-if="fileState.canWrite" class="'o_dfd_rename_file_menu'" onSelected.bind="() => this.renameFile(file.id)">
                         <i class="fa fa-fw fa-pencil me-1"/>Renombrar
                     </DropdownItem>
                 </Dropdown>

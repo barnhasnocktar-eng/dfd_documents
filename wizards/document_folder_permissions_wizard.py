@@ -37,6 +37,40 @@ class DocumentFolderPermissionsWizard(models.TransientModel):
         help="Empleados con acceso a esta carpeta por ser empleado permitido de alguna carpeta "
         "antepasada. No se pueden quitar desde aquí: hay que editarlos en la carpeta antepasada.",
     )
+    allowed_group_read_ids = fields.Many2many(
+        "res.groups",
+        relation="document_folder_permissions_wizard_group_read_rel",
+        string="Grupos con solo lectura",
+        help="Grupos que solo pueden navegar y descargar el contenido de esta carpeta (no "
+        "crear, renombrar, mover ni eliminar), además de los ya heredados de carpetas "
+        "antepasadas. Si un grupo tiene también lectura/escritura (arriba o heredada), ese "
+        "acceso más amplio prevalece sobre este.",
+    )
+    inherited_group_read_ids = fields.Many2many(
+        "res.groups",
+        relation="document_folder_permissions_wizard_inherited_group_read_rel",
+        string="Grupos de solo lectura heredados (solo lectura)",
+        help="Grupos con acceso de solo lectura a esta carpeta por ser grupo permitido de "
+        "solo lectura de alguna carpeta antepasada. No se pueden quitar desde aquí: hay que "
+        "editarlos en la carpeta antepasada.",
+    )
+    allowed_employee_read_ids = fields.Many2many(
+        "hr.employee",
+        relation="document_folder_permissions_wizard_employee_read_rel",
+        string="Empleados con solo lectura",
+        help="Empleados que solo pueden navegar y descargar el contenido de esta carpeta (no "
+        "crear, renombrar, mover ni eliminar) a través de su usuario relacionado, además de "
+        "los ya heredados de carpetas antepasadas. Si un empleado tiene también "
+        "lectura/escritura (arriba o heredada), ese acceso más amplio prevalece sobre este.",
+    )
+    inherited_employee_read_ids = fields.Many2many(
+        "hr.employee",
+        relation="document_folder_permissions_wizard_inherited_employee_read_rel",
+        string="Empleados de solo lectura heredados (solo lectura)",
+        help="Empleados con acceso de solo lectura a esta carpeta por ser empleado permitido "
+        "de solo lectura de alguna carpeta antepasada. No se pueden quitar desde aquí: hay "
+        "que editarlos en la carpeta antepasada.",
+    )
 
     def _check_is_admin(self):
         # Gestionar quién tiene acceso a una carpeta es una potestad de administración,
@@ -70,6 +104,16 @@ class DocumentFolderPermissionsWizard(models.TransientModel):
         if "inherited_employee_ids" in fields_list:
             parent_employees = folder.parent_id.effective_employee_ids if folder.parent_id else self.env["hr.employee"]
             res["inherited_employee_ids"] = [(6, 0, parent_employees.ids)]
+        if "allowed_group_read_ids" in fields_list:
+            res["allowed_group_read_ids"] = [(6, 0, folder.allowed_group_read_ids.ids)]
+        if "inherited_group_read_ids" in fields_list:
+            parent_groups_read = folder.parent_id.effective_group_read_ids if folder.parent_id else self.env["res.groups"]
+            res["inherited_group_read_ids"] = [(6, 0, parent_groups_read.ids)]
+        if "allowed_employee_read_ids" in fields_list:
+            res["allowed_employee_read_ids"] = [(6, 0, folder.allowed_employee_read_ids.ids)]
+        if "inherited_employee_read_ids" in fields_list:
+            parent_employees_read = folder.parent_id.effective_employee_read_ids if folder.parent_id else self.env["hr.employee"]
+            res["inherited_employee_read_ids"] = [(6, 0, parent_employees_read.ids)]
         return res
 
     def action_save_permissions(self):
@@ -78,5 +122,7 @@ class DocumentFolderPermissionsWizard(models.TransientModel):
         self.folder_id.write({
             "allowed_group_ids": [(6, 0, self.allowed_group_ids.ids)],
             "allowed_employee_ids": [(6, 0, self.allowed_employee_ids.ids)],
+            "allowed_group_read_ids": [(6, 0, self.allowed_group_read_ids.ids)],
+            "allowed_employee_read_ids": [(6, 0, self.allowed_employee_read_ids.ids)],
         })
         return {"type": "ir.actions.act_window_close"}

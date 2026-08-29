@@ -17,6 +17,11 @@
                              help="Al crear o actualizar carpetas de empleados, da acceso automático al gerente del departamento (o al responsable directo si no hay departamento o gerente) sobre la carpeta correspondiente.">
                         <field name="x_grant_manager_department_permissions"/>
                     </setting>
+                    <setting id="grant_read_only_permissions_by_default_setting"
+                             string="Dar solo permisos de lectura por defecto a los empleados en la creación automática"
+                             help="Al crear la carpeta de un empleado desde la sincronización automática, el empleado queda con solo lectura sobre su propia carpeta (navegar y descargar) en vez del acceso de lectura/escritura habitual. No afecta al permiso del gerente sobre la carpeta del departamento.">
+                        <field name="x_grant_read_only_permissions_by_default"/>
+                    </setting>
                     <setting id="movement_log_retention_setting"
                              string="Días de retención del historial de movimientos"
                              help="Nº de días que se conservan las entradas del historial de movimientos antes de purgarse automáticamente cada día. 0 desactiva la purga.">

@@ -94,12 +94,27 @@ class HrEmployee(models.Model):
         Si el ajuste "Dar permisos al gerente sobre todo su departamento al crear las carpetas"
         está activo, además aplica (o reaplica) `x_grant_manager_folder_permissions` en cada
         pasada, tanto para carpetas recién creadas como para las que ya existían de antes.
+
+        Si el ajuste "Dar solo permisos de lectura por defecto a los empleados en la creación
+        automática" está activo, el propio empleado recibe solo lectura (`allowed_employee_read_ids`)
+        sobre su carpeta recién creada en vez del acceso de lectura/escritura habitual
+        (`allowed_employee_ids`). Solo aplica al crear la carpeta (no se reevalúa en pasadas
+        posteriores sobre una carpeta ya existente) y no afecta al permiso del gerente.
         """
         root_folder = self.x_get_employee_folder_parent()
         default_folders = self.env["document.employee.default.folder"].search([])
-        grant_manager_permissions = self.env["ir.config_parameter"].sudo().get_param(
+        ConfigParameter = self.env["ir.config_parameter"].sudo()
+        grant_manager_permissions = ConfigParameter.get_param(
             "dfd_documents.grant_manager_department_permissions"
         )
+        # Ajuste "Dar solo permisos de lectura por defecto a los empleados en la creación
+        # automática" (Ajustes > Empleados > Documentos): solo cambia el permiso que recibe
+        # el propio empleado sobre su carpeta (navegar/descargar en vez de lectura/escritura
+        # completa); no afecta al permiso del gerente, que sigue el ajuste de arriba.
+        grant_read_only = ConfigParameter.get_param(
+            "dfd_documents.grant_read_only_permissions_by_default"
+        )
+        employee_folder_field = "allowed_employee_read_ids" if grant_read_only else "allowed_employee_ids"
         DocumentFolder = self.env["document.folder"]
         for employee in self:
             employee_folder = employee.x_document_folder_id
@@ -116,7 +131,7 @@ class HrEmployee(models.Model):
                 employee_folder = DocumentFolder.create({
                     "name": employee.name,
                     "parent_id": employee_parent_folder.id,
-                    "allowed_employee_ids": [(6, 0, employee.ids)],
+                    employee_folder_field: [(6, 0, employee.ids)],
                 })
                 employee.x_document_folder_id = employee_folder.id
 

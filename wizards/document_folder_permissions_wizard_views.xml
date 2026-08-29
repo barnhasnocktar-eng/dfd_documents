@@ -6,7 +6,7 @@
         <field name="arch" type="xml">
             <form string="Permisos de la carpeta">
                 <field name="folder_id" invisible="1"/>
-                <group>
+                <group string="Lectura/escritura">
                     <field name="inherited_group_ids" widget="many2many_tags" readonly="1"
                         string="Grupos permitidos heredados"/>
                     <field name="allowed_group_ids" widget="many2many_tags"
@@ -17,6 +17,18 @@
                     <field name="allowed_employee_ids" widget="many2many_tags"
                         string="Empleados permitidos en esta carpeta"
                         placeholder="Añade empleados con acceso a esta carpeta..."/>
+                </group>
+                <group string="Solo lectura">
+                    <field name="inherited_group_read_ids" widget="many2many_tags" readonly="1"
+                        string="Grupos de solo lectura heredados"/>
+                    <field name="allowed_group_read_ids" widget="many2many_tags"
+                        string="Grupos de solo lectura en esta carpeta"
+                        placeholder="Añade grupos que solo puedan navegar y descargar..."/>
+                    <field name="inherited_employee_read_ids" widget="many2many_tags" readonly="1"
+                        string="Empleados de solo lectura heredados"/>
+                    <field name="allowed_employee_read_ids" widget="many2many_tags"
+                        string="Empleados de solo lectura en esta carpeta"
+                        placeholder="Añade empleados que solo puedan navegar y descargar..."/>
                 </group>
                 <footer>
                     <button string="Guardar" type="object" name="action_save_permissions" class="btn-primary"/>

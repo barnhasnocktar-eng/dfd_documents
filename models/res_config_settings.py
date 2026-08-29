@@ -23,6 +23,16 @@ class ResConfigSettings(models.TransientModel):
         "directo, el permiso se da directamente sobre la carpeta del propio empleado. Aplica "
         "también sobre carpetas ya creadas.",
     )
+    x_grant_read_only_permissions_by_default = fields.Boolean(
+        string="Dar solo permisos de lectura por defecto a los empleados en la creación automática",
+        config_parameter="dfd_documents.grant_read_only_permissions_by_default",
+        default=False,
+        help="Al crear la carpeta de un empleado desde la sincronización automática, el "
+        "empleado queda con solo lectura sobre su propia carpeta (puede navegar y descargar, "
+        "pero no crear, renombrar, mover ni eliminar nada) en vez del acceso de "
+        "lectura/escritura que recibe por defecto. No afecta al permiso del gerente sobre la "
+        "carpeta del departamento, que sigue siendo el ajuste de arriba.",
+    )
     x_movement_log_retention_days = fields.Integer(
         string="Días de retención del historial de movimientos",
         config_parameter="dfd_documents.movement_log_retention_days",

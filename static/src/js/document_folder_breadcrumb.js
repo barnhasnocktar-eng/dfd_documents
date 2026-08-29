@@ -172,7 +172,10 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
         this.dialog = useService("dialog");
         // uploadState.total > 0 mientras dura una subida (uno o varios archivos, sueltos o en
         // carpeta): pinta el overlay de progreso "X de Y" en vez del overlay de "soltar aquí".
-        this.fileState = useState({ files: [], dragging: false });
+        // canWrite: false si el usuario solo tiene lectura sobre la carpeta activa (ver
+        // can_write_folder en document_folder.py); oculta subir/renombrar/eliminar en el
+        // template y corta la subida por drag&drop antes de llamar al backend.
+        this.fileState = useState({ files: [], dragging: false, canWrite: true });
         this.uploadState = useState({ current: 0, total: 0 });
         // this.rootRef ya lo define KanbanRenderer (useRef("root")) — se reutiliza tal cual.
 
@@ -193,6 +196,9 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
             const limits = await this.orm.call("document.file", "get_upload_limits", []);
             this.maxUploadSize = limits.max_upload_size;
             this.maxUploadSizeMessage = limits.max_upload_size_message;
+            this.fileState.canWrite = await this.orm.call(
+                "document.folder", "can_write_folder", [this.activeFolderId]
+            );
         });
 
         onMounted(() => {
@@ -347,7 +353,12 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
         // Drag interno (carpeta o documento): no activa el overlay de "subir archivo", solo
         // resalta la tarjeta carpeta bajo el cursor (si hay una) como posible destino. Un
         // documento siempre puede soltarse sobre cualquier carpeta; una carpeta no sobre sí misma.
+        // Sin escritura en la carpeta activa (origen de este grid) no se resalta ningún destino:
+        // el backend igualmente rechazaría sacar contenido de una carpeta de solo lectura.
         if (dragState.item) {
+            if (!this.fileState.canWrite) {
+                return;
+            }
             const card = this.getFolderCard(ev.target);
             if (card !== this.dragOverEl) {
                 this.clearDragOver();
@@ -360,6 +371,9 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
                     this.dragOverEl = card;
                 }
             }
+            return;
+        }
+        if (!this.fileState.canWrite) {
             return;
         }
         this.fileState.dragging = true;
@@ -384,6 +398,10 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
             const targetCard = this.getFolderCard(ev.target);
             this.clearDragOver();
             dragState.item = null;
+            if (!this.fileState.canWrite) {
+                // Sin escritura en la carpeta activa (origen), no se puede sacar nada de aquí.
+                return;
+            }
             const targetFolderId = targetCard ? Number(targetCard.dataset.folderResId) : this.activeFolderId;
             if (type === "folder" && targetFolderId === id) {
                 return;
@@ -394,6 +412,10 @@ export class DocumentFolderKanbanRenderer extends KanbanRenderer {
                 return;
             }
             await this.moveItemToFolder({ type, id }, targetFolderId);
+            return;
+        }
+
+        if (!this.fileState.canWrite) {
             return;
         }
 
@@ -602,6 +624,16 @@ class DocumentFolderKanbanController extends KanbanController {
         super.setup();
         this.orm = useService("orm");
         this.notification = useService("notification");
+        // canWrite: false si el usuario solo tiene lectura sobre la carpeta activa (ver
+        // can_write_folder en document_folder.py). useState (no una propiedad simple) para
+        // que el getter canCreate, sobreescrito abajo, se reevalúe cuando termine de cargar.
+        this.controllerState = useState({ canWrite: true });
+        onWillStart(async () => {
+            const folderId = this.env.searchModel.context.active_folder_id;
+            this.controllerState.canWrite = await this.orm.call(
+                "document.folder", "can_write_folder", [folderId || false]
+            );
+        });
 
         // El buscador nativo del control panel solo filtra document.folder por nombre dentro
         // del nivel actual (domain fijo de la action), así que nunca encuentra documentos ni
@@ -615,6 +647,14 @@ class DocumentFolderKanbanController extends KanbanController {
         onWillUnmount(() => {
             this.env.searchModel.removeEventListener("update", this._onSearchUpdate);
         });
+    }
+
+    // Sobreescribe el getter nativo (KanbanController) que decide si pintar el botón "Nuevo"
+    // del control panel: además de la condición nativa (activeActions.create, agrupación...),
+    // exige escritura sobre la carpeta activa. Así el botón "Crear" no aparece en absoluto
+    // para un usuario con solo lectura, en vez de aparecer y fallar al pulsarlo.
+    get canCreate() {
+        return super.canCreate && this.controllerState.canWrite;
     }
 
     // Extrae el texto libre tecleado en la barra de búsqueda (facet tipo "field"), lo resuelve

@@ -1,7 +1,7 @@
 # Copyright 2026 Vértice Operativo <soporte@verticeoperativo.com>
 # Todos los derechos reservados. Está prohibido la distribución o modificación de este código sin permiso
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 
 # Valores por defecto (en MB) de los límites de subida, usados cuando el parámetro del sistema
 # correspondiente no está configurado. El proveedor los edita en Ajustes > Empleados >
@@ -85,21 +85,41 @@ class DocumentFile(models.Model):
         related="folder_id.effective_employee_ids",
         string="Empleados con acceso (heredado)",
     )
+    effective_group_read_ids = fields.Many2many(
+        "res.groups",
+        related="folder_id.effective_group_read_ids",
+        string="Grupos con acceso de solo lectura (heredado)",
+    )
+    effective_employee_read_ids = fields.Many2many(
+        "hr.employee",
+        related="folder_id.effective_employee_read_ids",
+        string="Empleados con acceso de solo lectura (heredado)",
+    )
 
     @api.model_create_multi
     def create(self, vals_list):
+        folder_ids = {vals["folder_id"] for vals in vals_list if vals.get("folder_id")}
+        if folder_ids:
+            self.env["document.folder"].browse(folder_ids)._check_can_write_content()
         documents = super().create(vals_list)
         for document in documents:
             document._log_movement("create", "Documento creado")
         return documents
 
     def write(self, vals):
+        # Renombrar/mover un documento exige escritura en su carpeta actual; mover además
+        # exige escritura en la carpeta destino (igual patrón que DocumentFolder.write).
+        if vals.keys() & {"name", "folder_id"}:
+            self.folder_id._check_can_write_content()
+        if vals.get("folder_id"):
+            self.env["document.folder"].browse(vals["folder_id"])._check_can_write_content()
         snapshots = self._prepare_movement_log_snapshots(vals)
         result = super().write(vals)
         self._write_movement_logs(snapshots)
         return result
 
     def unlink(self):
+        self.folder_id._check_can_write_content()
         # attachment_id es ondelete="cascade": Odoo gestiona esa cascada él mismo en la capa
         # ORM (no es solo la FK de Postgres), así que super().unlink() ya borra también el
         # ir.attachment asociado. No hace falta (ni hay que) borrarlo aquí explícitamente:

@@ -80,6 +80,53 @@ class DocumentFolder(models.Model):
         recursive=True,
         help="Unión de los empleados permitidos de esta carpeta y de todas sus antepasadas.",
     )
+    allowed_group_read_ids = fields.Many2many(
+        "res.groups",
+        "document_folder_allowed_group_read_rel",
+        "folder_id",
+        "group_id",
+        string="Grupos con solo lectura",
+        help="Grupos que solo pueden navegar y descargar el contenido de esta carpeta (no "
+        "crear, renombrar, mover ni eliminar), además de los ya permitidos de solo lectura "
+        "heredados de alguna carpeta antepasada. Si un grupo tiene también lectura/escritura "
+        "(propia o heredada) en esta carpeta, ese acceso más amplio prevalece.",
+    )
+    effective_group_read_ids = fields.Many2many(
+        "res.groups",
+        "document_folder_effective_group_read_rel",
+        "folder_id",
+        "group_id",
+        string="Grupos con acceso de solo lectura (heredado)",
+        compute="_compute_effective_group_ids",
+        store=True,
+        recursive=True,
+        help="Unión de los grupos de solo lectura de esta carpeta y de todas sus antepasadas, "
+        "excluyendo los que ya tengan lectura/escritura efectiva (ese acceso prevalece).",
+    )
+    allowed_employee_read_ids = fields.Many2many(
+        "hr.employee",
+        "document_folder_allowed_employee_read_rel",
+        "folder_id",
+        "employee_id",
+        string="Empleados con solo lectura",
+        help="Empleados que solo pueden navegar y descargar el contenido de esta carpeta (no "
+        "crear, renombrar, mover ni eliminar) a través de su usuario relacionado, además de los "
+        "ya permitidos de solo lectura heredados de alguna carpeta antepasada. Si un empleado "
+        "tiene también lectura/escritura (propia o heredada) en esta carpeta, ese acceso más "
+        "amplio prevalece.",
+    )
+    effective_employee_read_ids = fields.Many2many(
+        "hr.employee",
+        "document_folder_effective_employee_read_rel",
+        "folder_id",
+        "employee_id",
+        string="Empleados con acceso de solo lectura (heredado)",
+        compute="_compute_effective_group_ids",
+        store=True,
+        recursive=True,
+        help="Unión de los empleados de solo lectura de esta carpeta y de todas sus "
+        "antepasadas, excluyendo los que ya tengan lectura/escritura efectiva.",
+    )
     is_ancestor_of_accessible = fields.Boolean(
         string="Es antepasada de una carpeta accesible",
         compute="_compute_is_ancestor_of_accessible",
@@ -91,6 +138,9 @@ class DocumentFolder(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        parent_ids = {vals["parent_id"] for vals in vals_list if vals.get("parent_id")}
+        if parent_ids:
+            self.browse(parent_ids)._check_can_write_content()
         folders = super().create(vals_list)
         for folder in folders:
             folder._log_movement("create", "Carpeta creada")
@@ -122,9 +172,18 @@ class DocumentFolder(models.Model):
         # propios permisos de la carpeta también se gestionan "desde fuera", no desde dentro
         # de ella misma).
         guarded_folders = renamed_or_moved
-        if vals.keys() & {"is_locked", "allowed_group_ids", "allowed_employee_ids"}:
+        if vals.keys() & {
+            "is_locked", "allowed_group_ids", "allowed_employee_ids",
+            "allowed_group_read_ids", "allowed_employee_read_ids",
+        }:
             guarded_folders |= self
         guarded_folders._check_can_manage_self()
+
+        # Mover una carpeta también exige escritura en el destino, no solo en el origen (ya
+        # cubierto arriba vía guarded_folders/renamed_or_moved): sin esto, alguien con solo
+        # lectura en una carpeta podría arrastrar contenido ajeno dentro de ella.
+        if "parent_id" in vals and vals["parent_id"]:
+            self.browse(vals["parent_id"])._check_can_write_content()
 
         # Snapshot "antes" para el historial: hay que tomarlo antes de super().write(),
         # porque después ya no se puede reconstruir el valor previo (p. ej. name viejo).
@@ -185,7 +244,10 @@ class DocumentFolder(models.Model):
         snapshots = []
         touches_rename_or_move = bool(vals.keys() & {"name", "parent_id"})
         touches_lock = "is_locked" in vals
-        touches_permissions = bool(vals.keys() & {"allowed_group_ids", "allowed_employee_ids"})
+        touches_permissions = bool(vals.keys() & {
+            "allowed_group_ids", "allowed_employee_ids",
+            "allowed_group_read_ids", "allowed_employee_read_ids",
+        })
         if not (touches_rename_or_move or touches_lock or touches_permissions):
             return snapshots
 
@@ -194,6 +256,8 @@ class DocumentFolder(models.Model):
             old_path = folder._get_movement_log_path()
             old_groups = folder.allowed_group_ids.mapped("name")
             old_employees = folder.allowed_employee_ids.mapped("name")
+            old_groups_read = folder.allowed_group_read_ids.mapped("name")
+            old_employees_read = folder.allowed_employee_read_ids.mapped("name")
             snapshots.append({
                 "folder_id": folder.id,
                 "old_name": old_name,
@@ -201,6 +265,8 @@ class DocumentFolder(models.Model):
                 "old_locked": folder.is_locked,
                 "old_groups": old_groups,
                 "old_employees": old_employees,
+                "old_groups_read": old_groups_read,
+                "old_employees_read": old_employees_read,
             })
         return snapshots
 
@@ -234,12 +300,24 @@ class DocumentFolder(models.Model):
 
             new_groups = folder.allowed_group_ids.mapped("name")
             new_employees = folder.allowed_employee_ids.mapped("name")
-            if snap["old_groups"] != new_groups or snap["old_employees"] != new_employees:
+            new_groups_read = folder.allowed_group_read_ids.mapped("name")
+            new_employees_read = folder.allowed_employee_read_ids.mapped("name")
+            permissions_changed = (
+                snap["old_groups"] != new_groups
+                or snap["old_employees"] != new_employees
+                or snap["old_groups_read"] != new_groups_read
+                or snap["old_employees_read"] != new_employees_read
+            )
+            if permissions_changed:
                 detail = (
-                    f"Grupos antes: {', '.join(snap['old_groups']) or '(ninguno)'}\n"
-                    f"Grupos después: {', '.join(new_groups) or '(ninguno)'}\n"
-                    f"Empleados antes: {', '.join(snap['old_employees']) or '(ninguno)'}\n"
-                    f"Empleados después: {', '.join(new_employees) or '(ninguno)'}"
+                    f"Grupos (lectura/escritura) antes: {', '.join(snap['old_groups']) or '(ninguno)'}\n"
+                    f"Grupos (lectura/escritura) después: {', '.join(new_groups) or '(ninguno)'}\n"
+                    f"Empleados (lectura/escritura) antes: {', '.join(snap['old_employees']) or '(ninguno)'}\n"
+                    f"Empleados (lectura/escritura) después: {', '.join(new_employees) or '(ninguno)'}\n"
+                    f"Grupos (solo lectura) antes: {', '.join(snap['old_groups_read']) or '(ninguno)'}\n"
+                    f"Grupos (solo lectura) después: {', '.join(new_groups_read) or '(ninguno)'}\n"
+                    f"Empleados (solo lectura) antes: {', '.join(snap['old_employees_read']) or '(ninguno)'}\n"
+                    f"Empleados (solo lectura) después: {', '.join(new_employees_read) or '(ninguno)'}"
                 )
                 folder._log_movement("permissions", "Cambio de permisos", detail)
 
@@ -341,27 +419,100 @@ class DocumentFolder(models.Model):
     @api.depends(
         "allowed_group_ids", "parent_id.effective_group_ids",
         "allowed_employee_ids", "parent_id.effective_employee_ids",
+        "allowed_group_read_ids", "parent_id.effective_group_read_ids",
+        "allowed_employee_read_ids", "parent_id.effective_employee_read_ids",
     )
     def _compute_effective_group_ids(self):
+        # Lectura/escritura y solo lectura son dos vías acumulativas independientes, con la
+        # misma mecánica de herencia hacia abajo. Si un grupo/empleado tiene lectura/escritura
+        # (propia o heredada), ese acceso más amplio prevalece: se resta de los "de solo
+        # lectura" efectivos para que no quede una ambigüedad entre ambos conjuntos.
         always_allowed = self._get_always_allowed_groups()
         for folder in self:
             if folder.parent_id:
                 inherited_groups = folder.parent_id.effective_group_ids
                 inherited_employees = folder.parent_id.effective_employee_ids
+                inherited_groups_read = folder.parent_id.effective_group_read_ids
+                inherited_employees_read = folder.parent_id.effective_employee_read_ids
             else:
                 inherited_groups = always_allowed
                 inherited_employees = self.env["hr.employee"]
+                inherited_groups_read = self.env["res.groups"]
+                inherited_employees_read = self.env["hr.employee"]
             folder.effective_group_ids = inherited_groups | folder.allowed_group_ids | always_allowed
             folder.effective_employee_ids = inherited_employees | folder.allowed_employee_ids
+            folder.effective_group_read_ids = (
+                inherited_groups_read | folder.allowed_group_read_ids
+            ) - folder.effective_group_ids
+            folder.effective_employee_read_ids = (
+                inherited_employees_read | folder.allowed_employee_read_ids
+            ) - folder.effective_employee_ids
 
     def _is_accessible_by_current_user(self):
         """True si el usuario actual pertenece a algún grupo efectivo, o es el usuario
-        relacionado de algún empleado efectivo (propio o heredado), de `self`."""
+        relacionado de algún empleado efectivo (propio o heredado), de `self`. Acceso de
+        lectura/escritura únicamente: para saber si hay acceso real de cualquier tipo
+        (incluida solo lectura) usar `_is_accessible_in_any_mode_by_current_user`."""
         self.ensure_one()
         user_group_ids = set(self.env.user.groups_id.ids)
         if user_group_ids & set(self.effective_group_ids.ids):
             return True
         return self.env.user.id in self.effective_employee_ids.user_id.ids
+
+    def _is_accessible_in_any_mode_by_current_user(self):
+        """True si el usuario actual tiene acceso real a `self`, sea de lectura/escritura o
+        de solo lectura. Usado por `is_ancestor_of_accessible` para que la navegación por el
+        camino de antepasados funcione igual para usuarios de solo lectura (ver
+        `_is_accessible_by_current_user` para la variante que exige lectura/escritura)."""
+        self.ensure_one()
+        return self._is_accessible_by_current_user() or self._has_read_only_access_by_current_user()
+
+    def _has_read_only_access_by_current_user(self):
+        """True si el usuario actual tiene, como mínimo, acceso de solo lectura efectivo a
+        `self` (propio o heredado), sin importar si además tiene lectura/escritura."""
+        self.ensure_one()
+        user_group_ids = set(self.env.user.groups_id.ids)
+        if user_group_ids & set(self.effective_group_read_ids.ids):
+            return True
+        return self.env.user.id in self.effective_employee_read_ids.user_id.ids
+
+    def _is_read_only_for_current_user(self):
+        """True si el usuario actual tiene acceso a `self` únicamente de solo lectura (ni
+        `base.group_system` ni lectura/escritura efectiva, pero sí grupo/empleado de solo
+        lectura efectivo). Usado para bloquear crear/renombrar/mover/subir/eliminar
+        contenido dentro de una carpeta de solo lectura, tanto en Python (`DocumentFolder`/
+        `DocumentFile`) como expuesto a JS (ver `can_write_folder`)."""
+        self.ensure_one()
+        if self.env.user.has_group("base.group_system") or self._is_accessible_by_current_user():
+            return False
+        return self._has_read_only_access_by_current_user()
+
+    def _check_can_write_content(self):
+        """Corta con `UserError` si el usuario actual solo tiene acceso de solo lectura a
+        alguna carpeta de `self`: no puede crear/renombrar/mover/eliminar carpetas o
+        documentos dentro de ellas, solo navegar y descargar."""
+        read_only = self.filtered(lambda f: f._is_read_only_for_current_user())
+        if read_only:
+            raise UserError(
+                "Solo tienes permiso de lectura sobre esta carpeta: puedes navegar y "
+                "descargar su contenido, pero no crear, renombrar, mover ni eliminar nada."
+            )
+
+    @api.model
+    def can_write_folder(self, folder_id):
+        """Envoltorio RPC usado por el JS para decidir si mostrar el botón "Crear", el
+        cogMenu de Renombrar/Mover/Eliminar/Bloquear y permitir subir archivos por
+        drag&drop sobre la carpeta activa: False si el usuario solo tiene lectura.
+
+        `folder_id` puede llegar `False`/vacío (raíz virtual "Documentos", que no es un
+        `document.folder` real, mismo patrón que `default_get` de los wizards de creación/
+        renombrado): la raíz siempre es escribible en el sentido de este método, ya que no
+        tiene permisos propios que gestionar y crear carpetas de primer nivel es potestad de
+        `base.group_system` (ya filtrado aparte por el propio botón "Crear" nativo)."""
+        folder = self.browse(folder_id) if folder_id else self.browse()
+        if not folder:
+            return True
+        return not folder._is_read_only_for_current_user()
 
     def _compute_is_ancestor_of_accessible(self):
         """Ver ayuda del campo `is_ancestor_of_accessible`. No depends() a propósito: es
@@ -371,24 +522,27 @@ class DocumentFolder(models.Model):
         for folder in self:
             folder.is_ancestor_of_accessible = (
                 not is_admin
-                and not folder._is_accessible_by_current_user()
+                and not folder._is_accessible_in_any_mode_by_current_user()
                 and folder._has_accessible_descendant()
             )
 
     def _has_accessible_descendant(self):
         """True si alguna carpeta descendiente de `self` (sin incluirla) es accesible
-        (grupo o empleado efectivo) para el usuario actual. `sudo()` porque este chequeo
-        debe poder atravesar carpetas que la `ir.rule` normal ocultaría a este mismo
-        usuario (son precisamente las hermanas por las que no debe pasar la respuesta,
-        pero sí necesita poder MIRARLAS para saber que no dan acceso)."""
+        (grupo o empleado efectivo, de lectura/escritura o de solo lectura) para el usuario
+        actual. `sudo()` porque este chequeo debe poder atravesar carpetas que la `ir.rule`
+        normal ocultaría a este mismo usuario (son precisamente las hermanas por las que no
+        debe pasar la respuesta, pero sí necesita poder MIRARLAS para saber que no dan
+        acceso)."""
         self.ensure_one()
         user = self.env.user
         descendant_domain = [
             ("id", "child_of", self.id),
             ("id", "!=", self.id),
-            "|",
+            "|", "|", "|",
             ("effective_group_ids", "in", user.groups_id.ids),
             ("effective_employee_ids.user_id", "=", user.id),
+            ("effective_group_read_ids", "in", user.groups_id.ids),
+            ("effective_employee_read_ids.user_id", "=", user.id),
         ]
         return bool(self.env["document.folder"].sudo().search_count(descendant_domain))
 
@@ -406,9 +560,11 @@ class DocumentFolder(models.Model):
             ancestor_ids = []
         else:
             accessible_ids = self.sudo().search([
-                "|",
+                "|", "|", "|",
                 ("effective_group_ids", "in", user.groups_id.ids),
                 ("effective_employee_ids.user_id", "=", user.id),
+                ("effective_group_read_ids", "in", user.groups_id.ids),
+                ("effective_employee_read_ids.user_id", "=", user.id),
             ]).ids
             ancestor_ids = set()
             for folder in self.sudo().browse(accessible_ids):

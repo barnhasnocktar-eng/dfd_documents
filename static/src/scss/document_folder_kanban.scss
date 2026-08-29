@@ -105,6 +105,15 @@
         background-color: rgba(113, 75, 103, 0.05);
     }
 
+    // Solo lectura sobre la carpeta activa (ver can_write_folder en document_folder.py):
+    // oculta la papelera de cada tarjeta de SUBCARPETA (arch nativo de la vista kanban, sin
+    // acceso directo al estado del Renderer JS; ver t-if="fileState.canWrite" en el template
+    // para la papelera/menú de las tarjetas de documento, que sí lo tienen). El botón "Nuevo"
+    // y el overlay de subida ya se ocultan/cortan desde JS, no hace falta CSS para ellos.
+    &.o_dfd_readonly .o_kanban_record[data-folder-res-id] .o_dfd_delete_icon {
+        display: none;
+    }
+
     .o_dfd_kanban_drop_overlay {
         position: sticky;
         top: 0;
