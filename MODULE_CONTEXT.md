@@ -1,7 +1,7 @@
 # Contexto del Módulo: dfd_documents
 
 ## Propósito
-Gestor de carpetas y documentos con navegación en árbol tipo explorador de archivos (kanban de carpetas, sidebar de árbol, breadcrumb clicable y drag&drop), construido sobre `ir.attachment` como almacén real del contenido subido.
+Gestor de carpetas y documentos con navegación en árbol tipo explorador de archivos (kanban de carpetas, sidebar de árbol, breadcrumb clicable y drag&drop), construido sobre `ir.attachment` como almacén real del contenido subido. Incluye carpetas automáticas por empleado/departamento e historial de movimientos con purga programada.
 
 ## Modelos
 
@@ -33,6 +33,18 @@ Campos destacados:
 - `mimetype` / `file_size` (`related` a `attachment_id`, readonly): evitan duplicar datos del adjunto.
 
 Seguridad: `base.group_user` con acceso total; sin reglas especiales.
+
+### DocumentMovementLog (`document.movement.log`)
+Historial inmutable de eventos sobre carpetas y documentos (creación, renombrado, movido, bloqueo/desbloqueo, cambio de permisos, eliminación). Sin `create`/`edit`/`delete` en sus vistas (solo lectura desde UI).
+
+Campos destacados:
+- `res_model` / `res_id` / `res_name` / `folder_path`: "foto" del registro afectado en el momento del evento, sin `Many2one` real hacia `document.folder`/`document.file` a propósito — esos registros pueden borrarse (incluso en cascada) y el historial debe sobrevivir intacto.
+- `detail` (Text, opcional): usado solo en el evento `permissions` para listar grupos/empleados antes y después del cambio.
+
+Seguridad: solo lectura (`perm_read`) para `base.group_system`; nadie más tiene acceso al modelo.
+
+### EmployeeFolderSyncWizard (`document.employee.folder.sync.wizard`, TransientModel)
+Wizard sin campos, invocado desde el menú Configuración > Empleados > "Actualizar/Crear carpetas". `action_sync_folders` llama `x_sync_default_folders()` sobre **todos** los empleados del sistema (`search([])`) y recarga la página; es la vía masiva equivalente al botón individual de la ficha de empleado (`x_action_create_employee_folder`), ambos delegan en el mismo método de `hr.employee`.
 
 ### DocumentFolderCreateWizard (`document.folder.create.wizard`, TransientModel)
 Wizard modal invocado desde el botón "Crear" del kanban de carpetas (`on_create` de la vista).
@@ -84,6 +96,12 @@ Backend del drag&drop de documento sobre carpeta. Corta a mano el caso `target_f
 ### `action_download` — DocumentFile
 Devuelve una acción `ir.actions.act_url` hacia `/web/content/{attachment_id}?download=true`; es lo que se dispara al pulsar una tarjeta de documento en el kanban.
 
+### `write` / `unlink` / `_log_movement` / `_prepare_movement_log_snapshots` / `_write_movement_logs` — DocumentFolder y DocumentFile
+Cada `create`/`write`/`unlink` de carpeta o documento escribe en `document.movement.log` vía `sudo()` (quien mueve/borra no tiene por qué tener permiso de escritura sobre el historial, de solo lectura para administración). El snapshot "antes" (nombre, ruta, `is_locked`, grupos/empleados) se toma siempre ANTES de `super().write()`, porque después ya no se puede reconstruir el valor previo; se compara contra el estado ya escrito para decidir qué eventos disparar (un mismo `write` puede generar varios: p. ej. renombrar y mover a la vez). En `unlink` de `DocumentFolder`, se loguea cada carpeta afectada por la cascada (no solo las pedidas explícitamente) antes de que `super().unlink()` las borre, congelando su `folder_path` de una vez.
+
+### `cron_clean_movement_logs` — DocumentMovementLog
+Cron diario (`ir.cron`, ver `data/cron_document_movement_log_cleanup.xml`) que purga entradas de historial más antiguas que `dfd_documents.movement_log_retention_days` (Ajustes, 30 por defecto). 0 desactiva la purga (no borra nunca).
+
 ### `x_grant_manager_folder_permissions` — HrEmployee (`hr_employee.py`)
 Aplica la regla de negocio del ajuste `dfd_documents.grant_manager_department_permissions`
 ("Dar permisos al gerente sobre todo su departamento al crear las carpetas", checkbox en
@@ -106,6 +124,9 @@ botón individual de un empleado) basta para poner al día los permisos ya cread
 
 - **Kanban de carpetas** (`view_document_folder_kanban`) usa `js_class="document_folder_kanban"` (registrado en `document_folder_bus.js`... realmente en el JS del renderer) y `on_create` apunta al wizard modal en vez de a una quick-create nativa.
 - **`action_document_folder`** es la única acción de navegación de todo el módulo (dominio y contexto dinámicos, ver métodos arriba); su vista kanban es la única declarada (`action_document_folder_kanban_view`), no tiene vista lista ni form en el flujo normal (el form de `document.folder`/`document.file` existe pero solo es alcanzable editando el registro directamente, no desde la navegación kanban).
+- **Menú "Historial"** (`action_document_movement_log`, reservado a `base.group_system`): tree/form/search de solo lectura sobre `document.movement.log`, con filtros por tipo (Carpetas/Documentos) y agrupación por tipo de evento/usuario/fecha.
+- **Ajustes > Empleados > Documentos** (`res_config_settings_views.xml`): bloque con 3 settings — carpeta padre de empleados, checkbox de permisos de gerente, y días de retención del historial.
+- **Ficha de empleado** (`hr_employee_views.xml`, dentro de la pestaña "Configuración"): grupo "Documentos" con botón "Crear carpetas" (si no tiene `x_document_folder_id`) o "Ir a la carpeta" (si ya la tiene).
 
 ### Frontend JS (OWL), en `static/src/js/`
 
@@ -119,6 +140,7 @@ El grid nativo de carpetas se extiende con overrides de vista registrados como `
 - **`document_folder_rename_menu.js`/`.xml`**: los tres items del cogMenu sobre carpetas — `RenameFolderMenuItem`, `PermissionsFolderMenuItem`, `DeleteFolderMenuItem` — más el patch de `importRecordsItem` para excluirlo de `document.folder`. **Toda la comprobación de permiso vive en `isDisplayed`, no dentro del componente**: `CogMenu` (core, `cog_menu.js`) resuelve `await item.isDisplayed(env)` de cada item registrado ANTES de decidir si lo cuenta en `hasItems`, así que un item sin permiso ni siquiera se monta y el botón de engranaje no aparece si ningún item pasa. Poner la comprobación dentro del componente (un `t-if` sobre un estado cargado en `onWillStart`) fue el primer intento y NO funciona bien: el componente se monta igual, `CogMenu` lo cuenta como "hay items" y el botón sale con el desplegable vacío.
   - `isFolderCogMenuCandidate(env)`: condición base sin permisos, solo "kanban de `document.folder` con carpeta activa".
   - `isDisplayedIfCanManage(env)` (usado por `RenameFolderMenuItem`/`DeleteFolderMenuItem`): además de `isFolderCogMenuCandidate`, hace `await env.services.orm.call("document.folder", "can_manage_folder", [folderId])` (envoltorio RPC de `_can_manage_self()`). Así ni la carpeta con acceso propio ni ninguna de sus antepasadas (visibles en modo solo lectura vía `is_ancestor_of_accessible`) muestran estas acciones a quien no tiene permiso en el padre.
+  - `ToggleLockFolderMenuItem` (usado por `isDisplayedIfCanManage`, igual que Renombrar/Eliminar): alterna `is_locked` de la carpeta activa, con texto/icono "Bloquear"/"Desbloquear" según el valor leído en `onWillStart` (a diferencia de los demás items de este menú, que no cambian según el estado de la carpeta). Avisa `notifyFolderTreeChanged()` tras el cambio porque el árbol lateral pinta su propio candado por carpeta (`get_folder_tree` incluye `is_locked`).
   - `PermissionsFolderMenuItem`: su `isDisplayed` no hace RPC, usa `env.services.user.isAdmin` (sincronizado por Odoo con `base.group_system`, patrón visto en `web.ExportAll` del core). Es una restricción MÁS estricta que la de Renombrar/Eliminar (ver wizard de permisos arriba): nunca se muestra a un usuario con "solo" permiso en el padre, únicamente a administradores.
 
 Reglas de negocio del drag&drop reforzadas también en cliente (antes de llamar al backend): no se resalta como destino válido la propia carpeta arrastrada, y un documento soltado fuera de cualquier tarjeta en el grid se queda donde está (no intenta "moverse a la carpeta activa", porque ya vive ahí).
